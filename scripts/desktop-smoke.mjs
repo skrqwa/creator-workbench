@@ -31,6 +31,12 @@ async function launch() {
 }
 const state = () => page.evaluate(() => window.studio.call('bootstrap'));
 
+async function saveChanges() {
+  await page.getByRole('button', {name:'保存项目，保存修改', exact:true}).click();
+  await page.getByRole('button', {name:/^保存项目，已保存/}).waitFor();
+  return (await state()).project;
+}
+
 async function checkMixedConfirmation() {
   await page.evaluate(async () => {
     await window.studio.call('accounts.save', {account: {platform:'wechat', name:'文章复核样例', channel:'browser'}});
@@ -70,25 +76,28 @@ try {
     assert.equal(initial.kind,kind);
     const replacement = '把这一段改成自己的讲解，保存后可以继续编辑。';
     await input.fill(replacement);
-    await page.getByTestId('project-save').click();
-    await page.waitForFunction(async line => (await window.studio.call('bootstrap')).project.scenes[0].text === line, replacement);
+    const edited = await saveChanges();
+    assert.equal(edited.scenes[0].text, replacement);
 
     // 只替换系统选文件对话框，其余导入、复制、界面编辑及编码均经过应用的正式入口。
     const sampleImage = path.join(cwd,'examples', kind,'assets',kind==='brief'?'basin.png':'filter.png');
     await app.evaluate(({ dialog },file) => { dialog.showOpenDialog = async () => ({canceled:false,filePaths:[file]}); }, sampleImage);
     await page.getByRole('button',{name:'媒体素材'}).click();
     await page.getByRole('button',{name:'替换',exact:true}).first().click();
-    await page.getByTestId('project-save').click();
-    await page.waitForFunction(async old => (await window.studio.call('bootstrap')).project.scenes[0].media !== old, initial.scenes[0].media);
-    const current = (await state()).project;
+    const current = await saveChanges();
+    assert.notEqual(current.scenes[0].media, initial.scenes[0].media);
     assert.match(current.scenes[0].media,/\.png$/i);
     if (kind==='tutorial') await checkMixedConfirmation();
     if (artifactDir) await page.screenshot({path:path.join(artifactDir,kind+'-editor.png')});
 
     await page.getByTestId('export-project').click();
-    await page.getByTestId('render-project').click();
-    await page.waitForFunction(async () => Boolean((await window.studio.call('bootstrap')).project.exports), null, {timeout:720000,polling:1500});
-    await page.getByRole('button',{name:'关闭',exact:true}).last().click();
+    const exportDialog = page.getByRole('dialog', {name:'导出成品', exact:true});
+    await exportDialog.getByTestId('render-project').click();
+    const completed = exportDialog.getByText('此版本已导出', {exact:true});
+    const failure = page.locator('.feedback.problem[role="alert"]');
+    await completed.or(failure).first().waitFor({timeout:720000});
+    if (await failure.isVisible()) throw new Error(await failure.innerText());
+    await exportDialog.getByRole('button',{name:'关闭',exact:true}).click();
     const model = (await state()).project;
     ids.push(model.id);
     const folder = path.join(temp,'projects',model.id);
