@@ -1,0 +1,81 @@
+{
+  "name": "creator-workbench",
+  "productName": "Creator Workbench",
+  "version": "0.1.0",
+  "description": "本地视频与图文创作工作台",
+  "private": true,
+  "type": "module",
+  "main": "desktop/main.mjs",
+  "license": "MIT",
+  "author": "skrqwa",
+  "homepage": "https://github.com/skrqwa/creator-workbench",
+  "repository": "github:skrqwa/creator-workbench",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "electron .",
+    "build": "vite build --base=./",
+    "test": "node --test tests/*.test.mjs",
+    "pack": "npm run build && electron-builder --dir --publish never",
+    "dist": "npm run build && electron-builder --publish never",
+    "smoke": "node scripts/desktop-smoke.mjs"
+  },
+  "dependencies": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "lucide-react": "0.577.0",
+    "fast-xml-parser": "5.12.1",
+    "ffmpeg-static": "5.3.0",
+    "@resvg/resvg-js": "2.6.2",
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0",
+    "vite": "7.3.1",
+    "playwright-core": "1.65.1"
+  },
+  "build": {
+    "appId": "io.github.skrqwa.creatorworkbench",
+    "productName": "Creator Workbench",
+    "artifactName": "Creator-Workbench-${version}-${os}-${arch}.${ext}",
+    "executableName": "creator-workbench",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/ffmpeg*",
+      "node_modules/@resvg/**/**.node"
+    ],
+    "files": [
+      "dist/**",
+      "desktop/**",
+      "LICENSE",
+      "THIRD-PARTY.md"
+    ],
+    "extraResources": [
+      { "from": "examples", "to": "examples", "filter": ["**/*", "!tools/**"] }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "signExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": false
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.video",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    }
+  }
+}

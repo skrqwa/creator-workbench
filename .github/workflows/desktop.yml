@@ -1,0 +1,99 @@
+name: Desktop installers
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows-x64
+          - os: macos-15
+            name: macOS-arm64
+          - os: macos-15-intel
+            name: macOS-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Build desktop installer
+        run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Install NSIS and exercise the installed application
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $package = (Get-ChildItem release -Filter '*.exe' -File).FullName
+          $destination = Join-Path $env:RUNNER_TEMP 'creator-installed'
+          $install = Start-Process -FilePath $package -ArgumentList @('/S', "/D=$destination") -Wait -PassThru -WindowStyle Hidden
+          if ($install.ExitCode -ne 0) { throw "Installer exited with $($install.ExitCode)" }
+          $app = Get-ChildItem $destination -Filter 'creator-workbench.exe' -File | Select-Object -First 1
+          if (!$app) { throw 'Installed executable missing' }
+          $env:CREATOR_INSTALLED_EXE = $app.FullName
+          $env:CREATOR_SMOKE_ARTIFACTS = Join-Path $env:RUNNER_TEMP 'creator-smoke-evidence'
+          npm run smoke
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Install DMG and exercise the installed application
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -eu
+          mount="$(mktemp -d "$RUNNER_TEMP/creator-volume.XXXXXX")"
+          hdiutil attach release/*.dmg -readonly -nobrowse -mountpoint "$mount"
+          trap 'hdiutil detach "$mount"' EXIT
+          ditto "$mount/Creator Workbench.app" "$RUNNER_TEMP/Creator Workbench.app"
+          bundle="$RUNNER_TEMP/Creator Workbench.app/Contents"
+          exe=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Info.plist")
+          CREATOR_INSTALLED_EXE="$bundle/MacOS/$exe" CREATOR_SMOKE_ARTIFACTS="$RUNNER_TEMP/creator-smoke-evidence" npm run smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            release/*.exe
+            release/*.dmg
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: check-${{ matrix.name }}
+          path: ${{ runner.temp }}/creator-smoke-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: installer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          path: installers
+          merge-multiple: true
+      - name: Publish tested binaries and checksums
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          cd installers
+          sha256sum *.exe *.dmg > SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Creator Workbench $GITHUB_REF_NAME" --notes "Windows 和 macOS 安装包已通过两套示例的修改、导出和重新打开测试。各平台实际投稿需要对应的测试账号和授权。" -- *.exe *.dmg SHA256SUMS.txt
