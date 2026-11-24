@@ -20,6 +20,8 @@
 |---|---|---|
 | 内容创作 · 卡片精修（日间宣纸） | [01-创作页-卡片精修v2.html](design-reference/01-创作页-卡片精修v2.html) | [01-studio-light.png](design-reference/preview/01-studio-light.png) |
 | 内容创作 · 夜墨深色 | `01-创作页-卡片精修v2.html?theme=dark` | [02-studio-dark.png](design-reference/preview/02-studio-dark.png) |
+| 视频风格模板库（9:16 清锐紫白） | [04-模板风格库v2.html](design-reference/04-模板风格库v2.html) | [05-style-library-violet.png](design-reference/preview/05-style-library-violet.png) |
+| 视频风格模板库（16:9 交互课件） | `04-模板风格库v2.html?tpl=courseware-deck` | [06-style-library-courseware.png](design-reference/preview/06-style-library-courseware.png) |
 | 八平台分发 | [02-八平台分发v2.html](design-reference/02-八平台分发v2.html) | [03-publish.png](design-reference/preview/03-publish.png) |
 | 选题灵感 | [03-选题灵感v2.html](design-reference/03-选题灵感v2.html) | [04-topics.png](design-reference/preview/04-topics.png) |
 
@@ -30,8 +32,9 @@
 顶栏固定高度 `64px`，三段式栅格：
 
 1. **左区**：印章图标「坊」+「创作工坊」+ 项目/工作区切换按钮（可打开项目库 [ProjectDialogs.jsx](../src/ProjectDialogs.jsx) 或新建项目）。
-2. **中区**：4 个核心创作流程标签（底部 2px 黛青指示线）：
+2. **中区**：5 个核心创作流程标签（底部 2px 黛青指示线）：
    - `选题灵感`（附条数徽标）→ [TopicsTools.jsx](../src/TopicsTools.jsx) `TopicsPage`
+   - `风格模板`（附模板数徽标，实时预览动画/配色/组件并一键建项目）→ 见 [docs/video-style-library.md](video-style-library.md) 与 [src/video-style-presets.mjs](../src/video-style-presets.mjs)
    - `内容创作` → [Editor.jsx](../src/Editor.jsx) `Editor`
    - `八平台分发` → [Publishing.jsx](../src/Publishing.jsx) `PublishPage`
    - `发布记录` → [AccountsReceipts.jsx](../src/AccountsReceipts.jsx) `ReceiptsPage`

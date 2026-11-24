@@ -6,7 +6,8 @@
 
 - [docs/ui-design-system.md](docs/ui-design-system.md)：已定稿的「黛青画册流 v2」信息架构、各页面交互细节、无障碍底线与最终审核清单。
 - [src/tokens.css](src/tokens.css)：唯一的色板、字栈、圆角、阴影与日/夜主题 CSS 变量真源（WCAG AA 对比度已校准，组件内直接引用变量，不另写硬编码色值）。
-- [docs/design-reference/](docs/design-reference/)：经确认的像素级 HTML 与 PNG 参考稿（创作页日/夜、八平台分发、选题灵感）。
+- [docs/video-style-library.md](docs/video-style-library.md) 与 [src/video-style-presets.mjs](src/video-style-presets.mjs)：视频成品的「模板风格库」规范与前后端共享预设（含清锐紫白等 4 套皮肤、6 套跨题材结构模板、8 类组件素材与 5 套克制动效）。
+- [docs/design-reference/](docs/design-reference/)：经确认的像素级 HTML 与 PNG 参考稿（创作页日/夜、视频风格模板库动态预览、八平台分发、选题灵感）。
 
 ## 工程边界与验证
 

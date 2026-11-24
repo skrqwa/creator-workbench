@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>创作工坊 · 视频模板风格库 v2</title>
+<link rel="stylesheet" href="base.css" />
+<style>
+  [hidden] { display: none !important; }
+  .tabs { gap: 32px; }
+  .main { display: grid; grid-template-columns: 748px 1fr; min-height: 0; }
+
+  /* 左栏：配色皮肤 + 6 套结构模板 + 可复用画面组件素材 */
+  .left { display: flex; flex-direction: column; gap: 15px; padding: 22px 34px 20px 44px; min-height: 0; overflow: hidden; }
+  .lhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .lhead h1.title { font-size: 30px; margin: 8px 0 6px; }
+
+  .sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+  .sec-head h2 { font-size: 13px; font-weight: 600; color: var(--sub); letter-spacing: 0.02em; }
+  .sec-head span { font-size: 11.5px; color: var(--muted); }
+
+  /* 4 套视频配色皮肤切换卡 */
+  .palettes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .pal-btn { position: relative; text-align: left; padding: 10px 12px; border-radius: var(--r-md); background: var(--card); border: 1px solid var(--line); transition: border-color 150ms ease, box-shadow 150ms ease; }
+  .pal-btn:hover { border-color: var(--line-2); }
+  .pal-btn.on { border-color: var(--jade); box-shadow: var(--shadow); background: var(--jade-ghost); }
+  .swatches { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+  .sw { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(26, 35, 31, 0.14); }
+  .sw.wide { width: 32px; border-radius: 9px; }
+  .pal-btn b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.25; }
+  .pal-btn small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* 6 套跨题材结构模板网格（带真实微型视觉结构缩略图） */
+  .tpl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .tpl-card { position: relative; text-align: left; padding: 11px 12px 12px; border-radius: var(--r-md); background: var(--paper-2); border: 1px solid transparent; transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease; }
+  .tpl-card:hover { background: var(--card); border-color: var(--line); }
+  .tpl-card.on { background: var(--card); border-color: var(--jade); box-shadow: var(--shadow); }
+  .tpl-card.on::before { content: ''; position: absolute; left: 12px; right: 12px; top: -1px; height: 3px; border-radius: 0 0 3px 3px; background: var(--jade); }
+  .mini-frame { height: 78px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 9px; background: #fff; position: relative; }
+  .tpl-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .tpl-card b { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .tpl-card .ratio { font-family: var(--mono); font-size: 10.5px; padding: 1px 6px; border-radius: var(--r-pill); background: var(--paper); border: 1px solid var(--line); color: var(--sub); }
+  .tpl-card p { margin-top: 4px; font-size: 11.5px; color: var(--sub); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* 可复用画面组件素材带 */
+  .comp-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .comp-chip { text-align: left; padding: 8px 10px; border-radius: var(--r-sm); background: var(--card); border: 1px solid var(--line); transition: border-color 150ms ease; }
+  .comp-chip.on { border-color: var(--jade); background: var(--jade-ghost); }
+  .comp-chip small { display: block; font-size: 10.5px; color: var(--jade); font-weight: 600; }
+  .comp-chip b { display: block; font-size: 12px; font-weight: 600; margin-top: 2px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* 右栏：实时动态视频舞台 + 可视化色板与动效参数 */
+  .right { display: flex; flex-direction: column; gap: 14px; padding: 24px 34px 22px; background: var(--mist); border-left: 1px solid var(--line); min-height: 0; }
+  .rhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .rhead-title { display: flex; align-items: center; gap: 8px; }
+  .rhead-title b { font-size: 15px; font-weight: 600; }
+  .rhead-title span { font-size: 12px; color: var(--sub); }
+
+  /* 实时动态预览大舞台（支持 9:16 竖屏与 16:9 横屏自由切换） */
+  .live-wrap { flex: 1; min-height: 368px; border-radius: var(--r-lg); background: linear-gradient(135deg, var(--mist-2), var(--paper)); border: 1px solid var(--line); display: grid; place-items: center; padding: 14px; position: relative; overflow: hidden; }
+  .live-badge { position: absolute; left: 14px; top: 12px; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--r-pill); background: rgba(255, 255, 255, 0.9); border: 1px solid var(--line); font-size: 11.5px; font-weight: 600; color: var(--ink); z-index: 3; }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--jade); }
+  .anim-toggle { position: absolute; right: 14px; top: 12px; height: 26px; padding: 0 10px; border-radius: var(--r-pill); background: rgba(255, 255, 255, 0.92); border: 1px solid var(--line); font-size: 11.5px; color: var(--sub); display: inline-flex; align-items: center; gap: 5px; z-index: 3; }
+
+  /* 9:16 竖屏外框实景（默认清锐紫白） */
+  .v-phone {
+    width: 268px;
+    height: 432px;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 18px 40px rgba(26, 20, 48, 0.22);
+    background: linear-gradient(165deg, var(--v-shell-start, #2d1d59) 0%, var(--v-shell-end, #4c2e96) 100%);
+    padding: 13px 13px 14px;
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    position: relative;
+  }
+  .v-chbar { display: flex; align-items: center; gap: 4px; font-size: 9px; font-family: var(--mono); opacity: 0.92; }
+  .v-chbar .segbar { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.24); overflow: hidden; }
+  .v-chbar .segbar i { display: block; height: 100%; width: 58%; background: var(--v-progress, #9b7bff); border-radius: 2px; animation: progPulse 4.5s ease-in-out infinite; }
+  .v-head { display: flex; align-items: center; justify-content: space-between; margin: 12px 2px 10px; }
+  .v-head strong { font-size: 19px; font-weight: 700; letter-spacing: 0.02em; }
+  .v-head .tag-pill { font-size: 9.5px; font-weight: 600; padding: 2px 8px; border-radius: var(--r-pill); background: rgba(255, 255, 255, 0.16); border: 1px solid rgba(255, 255, 255, 0.24); }
+
+  .v-card { flex: 1; border-radius: 13px; background: var(--v-stage, #ffffff); color: var(--v-ink, #161423); padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18); position: relative; overflow: hidden; }
+  .v-card-head { display: flex; align-items: center; justify-content: space-between; }
+  .v-card-head b { font-size: 13px; font-weight: 700; }
+  .v-card-head span { font-size: 9.5px; font-family: var(--mono); color: var(--v-accent, #6338e0); background: var(--v-accent-soft, #ede8ff); padding: 1px 6px; border-radius: 5px; font-weight: 600; }
+
+  .v-split { flex: 1; display: grid; grid-template-columns: 0.95fr 1.15fr; gap: 8px; align-items: stretch; }
+  .v-step-col { display: flex; flex-direction: column; gap: 5px; }
+  .v-step { padding: 6px 7px; border-radius: 7px; background: var(--v-stage-alt, #f5f3ff); border: 1px solid transparent; opacity: 0.48; transition: opacity 260ms ease, border-color 260ms ease; }
+  .v-step.hi { opacity: 1; border-color: var(--v-accent, #6338e0); background: var(--v-accent-soft, #ede8ff); }
+  .v-step small { display: block; font-family: var(--mono); font-size: 8.5px; color: var(--v-accent, #6338e0); font-weight: 700; }
+  .v-step b { display: block; font-size: 10.5px; font-weight: 600; margin-top: 1px; }
+
+  .v-term { border-radius: 8px; background: var(--v-dark, #151321); color: #e8e5f7; padding: 8px; font-family: var(--mono); font-size: 9px; line-height: 1.55; position: relative; display: flex; flex-direction: column; justify-content: space-between; }
+  .v-term .dots { display: flex; gap: 4px; margin-bottom: 4px; }
+  .v-term .dots i { width: 5px; height: 5px; border-radius: 50%; background: rgba(255, 255, 255, 0.28); }
+  .v-term .cmd { color: #b9a4ff; }
+  .v-term .ok { color: #6ee7b7; }
+  .v-zoom-ring { position: absolute; inset: 20px 5px 18px 5px; border: 1.5px solid var(--v-progress, #9b7bff); border-radius: 5px; animation: zoomFocus 4.5s cubic-bezier(0.22, 1, 0.36, 1) infinite; pointer-events: none; }
+  .v-pointer { position: absolute; right: 14px; bottom: 22px; width: 15px; height: 15px; animation: ptrGlide 4.5s cubic-bezier(0.22, 1, 0.36, 1) infinite; }
+
+  .v-cap-zone { margin-top: 11px; text-align: center; }
+  .v-cap-pill { display: inline-block; padding: 5px 12px; border-radius: 9px; background: var(--v-cap-bg, #ffffff); border: 1.5px solid var(--v-cap-border, #7b56eb); color: var(--v-cap-ink, #3a1f8a); font-size: 11.5px; font-weight: 700; line-height: 1.3; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16); animation: capSettle 4.5s ease-out infinite; }
+  .v-cap-sub { display: block; margin-top: 4px; font-size: 9px; color: var(--v-cap-sub, #ece9f8); opacity: 0.88; font-family: var(--sans); }
+
+  /* 16:9 横屏交互课件实景 */
+  .v-wide {
+    width: 560px;
+    height: 315px;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 18px 40px rgba(26, 20, 48, 0.2);
+    background: var(--v-stage, #ffffff);
+    color: var(--v-ink, #161423);
+    border: 1px solid rgba(26, 20, 48, 0.12);
+    display: grid;
+    grid-template-rows: 26px 1fr;
+    position: relative;
+  }
+  .vw-top { display: flex; align-items: center; gap: 6px; padding: 0 12px; background: var(--v-stage-alt, #f5f3ff); border-bottom: 1px solid rgba(0, 0, 0, 0.06); font-size: 9.5px; color: var(--v-sub, #524d69); }
+  .vw-top span.on { color: var(--v-accent, #6338e0); font-weight: 700; }
+  .vw-top .sp { flex: 1; }
+  .vw-top .pg { font-family: var(--mono); font-weight: 600; color: var(--v-accent, #6338e0); }
+  .vw-body { display: grid; grid-template-columns: 124px 1fr; min-height: 0; }
+  .vw-nav { padding: 10px 8px; background: var(--v-stage-alt, #f5f3ff); border-right: 1px solid rgba(0, 0, 0, 0.06); display: flex; flex-direction: column; gap: 5px; font-size: 9.5px; color: var(--v-sub, #524d69); }
+  .vw-nav div { padding: 4px 7px; border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vw-nav div.on { background: var(--v-accent-soft, #ede8ff); color: var(--v-accent, #6338e0); font-weight: 700; }
+  .vw-stage { padding: 14px 16px 46px; display: grid; grid-template-columns: 1fr 1.15fr; gap: 14px; align-items: center; position: relative; }
+  .vw-left small { display: block; font-family: var(--mono); font-size: 9px; color: var(--v-accent, #6338e0); font-weight: 700; letter-spacing: 0.06em; }
+  .vw-left h3 { font-size: 16px; font-weight: 700; margin-top: 4px; line-height: 1.3; }
+  .vw-left p { font-size: 10.5px; color: var(--v-sub, #524d69); margin-top: 6px; line-height: 1.5; }
+  .vw-chart { padding: 10px 12px; border-radius: 10px; background: var(--v-stage-alt, #f5f3ff); border: 1px solid rgba(0, 0, 0, 0.06); }
+  .vw-bars { display: flex; align-items: flex-end; gap: 10px; height: 92px; padding-top: 10px; }
+  .vw-bar { flex: 1; border-radius: 5px 5px 0 0; background: rgba(82, 77, 105, 0.22); position: relative; }
+  .vw-bar.hi { background: var(--v-accent, #6338e0); }
+  .vw-bar span { position: absolute; bottom: -16px; left: 0; right: 0; text-align: center; font-size: 9px; color: var(--v-sub, #524d69); }
+  .vw-cap { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); padding: 5px 14px; border-radius: 8px; background: rgba(21, 19, 33, 0.88); color: #fff; font-size: 11px; text-align: center; white-space: nowrap; }
+
+  @keyframes progPulse { 0%, 100% { width: 54%; } 50% { width: 66%; } }
+  @keyframes zoomFocus { 0%, 100% { transform: scale(1); opacity: 0.72; } 50% { transform: scale(1.03); opacity: 1; } }
+  @keyframes ptrGlide { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-10px, -6px); } }
+  @keyframes capSettle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
+  .paused * { animation-play-state: paused !important; }
+
+  /* 底部可视化样式规格卡（色块 + 动效 + 默认 4 镜骨架） */
+  .spec-card { padding: 14px 16px; border-radius: var(--r-lg); background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; }
+  .spec-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .spec-col h3 { font-size: 12px; font-weight: 600; color: var(--sub); margin-bottom: 7px; }
+  .token-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tchip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px 3px 5px; border-radius: 7px; background: var(--paper-2); font-size: 11px; font-family: var(--mono); color: var(--ink); }
+  .tchip i { width: 13px; height: 13px; border-radius: 4px; border: 1px solid rgba(0, 0, 0, 0.14); }
+  .motion-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mchip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 7px; background: var(--jade-ghost); border: 1px solid var(--jade-soft); font-size: 11.5px; color: var(--jade); font-weight: 500; }
+  .mchip small { font-family: var(--mono); opacity: 0.85; font-size: 10.5px; }
+
+  .skeleton { display: flex; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .sk-step { flex: 1; padding: 6px 8px; border-radius: 8px; background: var(--paper-2); font-size: 11.5px; min-width: 0; }
+  .sk-step small { display: block; font-family: var(--mono); font-size: 10px; color: var(--jade); font-weight: 600; }
+  .sk-step b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+
+  .rfoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .rfoot .guard { font-size: 11.5px; color: var(--sub); display: inline-flex; align-items: center; gap: 5px; }
+  .rfoot .guard .ic { width: 14px; height: 14px; color: var(--jade); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="seal" aria-hidden="true">坊</span>
+      <span>创作工坊</span>
+      <button type="button" class="ws" aria-label="切换账号工作区">老坛说AI<i data-i="down"></i></button>
+    </div>
+    <nav class="tabs" aria-label="主导航">
+      <a class="tab" href="#topics">选题灵感<span class="n">23</span></a>
+      <a class="tab on" href="#styles" aria-current="page">风格模板<span class="n">6</span></a>
+      <a class="tab" href="#studio">内容创作</a>
+      <a class="tab" href="#publish">八平台分发</a>
+      <a class="tab" href="#history">发布记录</a>
+    </nav>
+    <div class="actions">
+      <span class="saved" role="status" aria-live="polite"><i data-i="checkCircle"></i>实时预览就绪</span>
+      <button type="button" class="btn ghost"><i data-i="sliders"></i>本机工具</button>
+      <button type="button" class="btn primary"><i data-i="plus"></i>套用此模板创作</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="left" aria-label="视频风格与模板选择">
+      <div>
+        <span class="eyebrow"><i data-i="sparkle"></i>可视化模板风格库 · 配色、动效与组件一键套用</span>
+        <div class="lhead">
+          <div>
+            <h1 class="title">视频风格模板库</h1>
+            <div class="meta"><span>4 套高清晰配色皮肤</span><span class="dot"></span><span>6 套跨题材分镜骨架</span><span class="dot"></span><span>内置去 AI 廉价感护栏</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="sec-head"><h2>一、选择视频配色皮肤（独立于工作台自身外观）</h2><span>点击即刻在右侧舞台换肤</span></div>
+        <div class="palettes" id="palettes" role="radiogroup" aria-label="视频配色皮肤">
+          <button type="button" class="pal-btn on" data-pal="crisp-violet" aria-checked="true">
+            <div class="swatches"><span class="sw wide" style="background:linear-gradient(135deg,#2D1D59,#4C2E96)"></span><span class="sw" style="background:#FFFFFF"></span><span class="sw" style="background:#6338E0"></span></div>
+            <b>清锐紫白</b>
+            <small>高对比讲堂 · 最清晰</small>
+          </button>
+          <button type="button" class="pal-btn" data-pal="celadon-paper" aria-checked="false">
+            <div class="swatches"><span class="sw wide" style="background:linear-gradient(135deg,#1A4B43,#276A5E)"></span><span class="sw" style="background:#F9F7F1"></span><span class="sw" style="background:#19544B"></span></div>
+            <b>黛青宣纸</b>
+            <small>温润书卷 · 久看不累</small>
+          </button>
+          <button type="button" class="pal-btn" data-pal="warm-amber" aria-checked="false">
+            <div class="swatches"><span class="sw wide" style="background:linear-gradient(135deg,#2E2218,#4A3523)"></span><span class="sw" style="background:#FFFDF8"></span><span class="sw" style="background:#C46D1F"></span></div>
+            <b>暖光琥珀</b>
+            <small>火柴人暖调 · 亲切</small>
+          </button>
+          <button type="button" class="pal-btn" data-pal="cinema-slate" aria-checked="false">
+            <div class="swatches"><span class="sw wide" style="background:linear-gradient(135deg,#0E1319,#1B2532)"></span><span class="sw" style="background:#141B24"></span><span class="sw" style="background:#38BDF8"></span></div>
+            <b>夜幕影棚</b>
+            <small>深色高反差 · 夜景</small>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <div class="sec-head"><h2>二、选择结构模板（自带分镜卡槽与节奏）</h2><span>支持 9:16 竖屏 / 16:9 横屏导出</span></div>
+        <div class="tpl-grid" id="tpl-grid">
+          <button type="button" class="tpl-card on" data-tpl="framed-screencast">
+            <div class="mini-frame" style="background:linear-gradient(160deg,#2D1D59,#4C2E96);padding:6px 14px;display:flex;flex-direction:column;gap:4px">
+              <div style="height:3px;border-radius:2px;background:rgba(255,255,255,.3)"><i style="display:block;width:55%;height:100%;background:#9B7BFF;border-radius:2px"></i></div>
+              <div style="flex:1;background:#fff;border-radius:5px;display:grid;grid-template-columns:1fr 1.2fr;gap:3px;padding:4px"><span style="background:#EDE8FF;border-radius:3px"></span><span style="background:#151321;border-radius:3px"></span></div>
+              <div style="height:10px;width:72%;margin:0 auto;border-radius:4px;background:#fff;border:1px solid #7B56EB"></div>
+            </div>
+            <div class="tpl-top"><b>竖屏外框教程</b><span class="ratio">9:16</span></div>
+            <p>顶栏进度 + 中央录屏白板 + 底部专属字幕槽，永不压操作区</p>
+          </button>
+
+          <button type="button" class="tpl-card" data-tpl="courseware-deck">
+            <div class="mini-frame" style="background:#fff;display:grid;grid-template-rows:10px 1fr">
+              <div style="background:#F5F3FF;border-bottom:1px solid #E6E0FA"></div>
+              <div style="display:grid;grid-template-columns:28px 1fr;gap:5px;padding:5px">
+                <div style="background:#F5F3FF;border-radius:3px"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px"><span style="background:#EDE8FF;border-radius:4px"></span><span style="background:#151321;border-radius:4px"></span></div>
+              </div>
+            </div>
+            <div class="tpl-top"><b>横屏交互课件</b><span class="ratio">16:9</span></div>
+            <p>左目录树 + 顶部分段进度 + 页码，适合 5–12 分钟深度教程</p>
+          </button>
+
+          <button type="button" class="tpl-card" data-tpl="contrast-opinion">
+            <div class="mini-frame" style="display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:3px;padding:5px;background:#F0EEE7">
+              <div style="background:#151321;border-radius:4px"></div>
+              <div style="background:#fff;border-radius:4px;border:1px solid #6338E0"></div>
+              <div style="background:#151321;border-radius:4px"></div>
+            </div>
+            <div class="tpl-top"><b>明暗三段观点</b><span class="ratio">9:16</span></div>
+            <p>黑底强判断开场 → 白底单点高亮拆解 → 黑底口诀回收</p>
+          </button>
+
+          <button type="button" class="tpl-card" data-tpl="matrix-compare">
+            <div class="mini-frame" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px;background:#2D1D59">
+              <span style="background:#fff;border-radius:3px;opacity:.45"></span>
+              <span style="background:#fff;border-radius:3px;border:1.5px solid #9B7BFF"></span>
+              <span style="background:#fff;border-radius:3px;opacity:.45"></span>
+              <span style="background:#fff;border-radius:3px;opacity:.45"></span>
+              <span style="background:#fff;border-radius:3px;opacity:.45"></span>
+              <span style="background:#fff;border-radius:3px;opacity:.45"></span>
+            </div>
+            <div class="tpl-top"><b>矩阵横评合集</b><span class="ratio">9:16</span></div>
+            <p>九格成品预告 → 锁框逐项同规格对照 → 回到原矩阵收束</p>
+          </button>
+
+          <button type="button" class="tpl-card" data-tpl="evidence-split">
+            <div class="mini-frame" style="display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:6px;background:#F9F7F1">
+              <div style="background:#E4ECE8;border-radius:4px;padding:5px"><span style="display:block;height:6px;background:#19544B;border-radius:2px;margin-top:8px"></span></div>
+              <div style="background:#fff;border-radius:4px;border:1px solid #D6DFD9"></div>
+            </div>
+            <div class="tpl-top"><b>左证右析解读</b><span class="ratio">16:9</span></div>
+            <p>左栏原文/红线清单局部高亮标出处，右栏人话拆解与阶梯</p>
+          </button>
+
+          <button type="button" class="tpl-card" data-tpl="anchored-cinema">
+            <div class="mini-frame" style="background:linear-gradient(180deg,#0E1319,#1B2532);position:relative;padding:6px">
+              <div style="position:absolute;left:12px;right:12px;bottom:18px;height:1px;background:rgba(56,189,248,.55)"></div>
+              <div style="position:absolute;left:42%;bottom:18px;width:16px;height:36px;border:1.5px solid #38BDF8;border-bottom:0;border-radius:3px 3px 0 0"></div>
+              <div style="position:absolute;right:6px;top:6px;width:24px;height:8px;border-radius:4px;background:rgba(56,189,248,.25)"></div>
+            </div>
+            <div class="tpl-top"><b>空间锚点叙事</b><span class="ratio">16:9</span></div>
+            <p>锁定不变地标/地平线与角落方位标，换景不迷路（适配夜景）</p>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <div class="sec-head"><h2>三、内置可复用画面组件素材（无需手动画图）</h2><span>8 类标准组件随模板自动装配</span></div>
+        <div class="comp-strip">
+          <div class="comp-chip on"><small>导航定位</small><b>顶部章节进度条</b></div>
+          <div class="comp-chip on"><small>字幕安全槽</small><b>底部独立胶囊字幕</b></div>
+          <div class="comp-chip on"><small>结构拆解</small><b>多步单点高亮卡</b></div>
+          <div class="comp-chip on"><small>实操对照</small><b>左步骤卡 + 右真终端</b></div>
+          <div class="comp-chip"><small>结果演示</small><b>对话生成成品卡</b></div>
+          <div class="comp-chip"><small>规范总结</small><b>左红线 + 右阶梯</b></div>
+          <div class="comp-chip"><small>节奏控制</small><b>×1.5 / 等待压缩卡</b></div>
+          <div class="comp-chip"><small>叙事运镜</small><b>不变空间方位锚</b></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="right" aria-label="模板动画与配色实时舞台">
+      <div class="rhead">
+        <div class="rhead-title">
+          <b id="stage-name">竖屏外框录屏教程</b>
+          <span id="stage-pal-label">· 清锐紫白</span>
+        </div>
+        <div class="seg" role="tablist" aria-label="切换画幅预览">
+          <button type="button" role="tab" id="btn-916" aria-selected="true" class="on"><i data-i="phone"></i>9:16 竖屏</button>
+          <button type="button" role="tab" id="btn-169" aria-selected="false"><i data-i="film"></i>16:9 横屏</button>
+        </div>
+      </div>
+
+      <div class="live-wrap" id="live-wrap">
+        <span class="live-badge"><i class="live-dot" aria-hidden="true"></i>动效实时预览</span>
+        <button type="button" class="anim-toggle" id="anim-toggle"><i data-i="play"></i>暂停动画</button>
+
+        <!-- 9:16 竖屏实景模板 -->
+        <div class="v-phone" id="view-916">
+          <div class="v-chbar">
+            <span>EP.06</span>
+            <div class="segbar"><i></i></div>
+            <span class="num">52%</span>
+          </div>
+          <div class="v-head">
+            <strong>声音克隆实操</strong>
+            <span class="tag-pill">老坛说AI</span>
+          </div>
+          <div class="v-card">
+            <div class="v-card-head">
+              <b>03 · 接入本地配置</b>
+              <span>推镜 1.15×</span>
+            </div>
+            <div class="v-split">
+              <div class="v-step-col">
+                <div class="v-step"><small>01</small><b>录十秒人声</b></div>
+                <div class="v-step hi"><small>02 当前</small><b>生成音色模板</b></div>
+                <div class="v-step"><small>03</small><b>一键配音验收</b></div>
+              </div>
+              <div class="v-term">
+                <div>
+                  <div class="dots"><i></i><i></i><i></i></div>
+                  <div class="cmd">$ qwen-voice clone</div>
+                  <div>ref: 10s-voice.wav</div>
+                  <div class="ok">✓ 模板已生成 .pt</div>
+                </div>
+                <div style="font-size:8px;opacity:.72">本地运行 · 无需联网</div>
+                <div class="v-zoom-ring" aria-hidden="true"></div>
+                <svg class="v-pointer" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.6L10 19z" fill="#ffffff" stroke="#151321" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="v-cap-zone">
+            <span class="v-cap-pill">准备十秒人声，本地提取音色</span>
+            <span class="v-cap-sub">Record 10s clear voice, extract locally</span>
+          </div>
+        </div>
+
+        <!-- 16:9 横屏交互课件实景模板 -->
+        <div class="v-wide" id="view-169" hidden>
+          <div class="vw-top">
+            <span>开场目标</span><span>/</span>
+            <span class="on">核心价值</span><span>/</span>
+            <span>真机实操</span><span>/</span>
+            <span>清单回收</span>
+            <span class="sp"></span>
+            <span class="pg">06 / 18</span>
+          </div>
+          <div class="vw-body">
+            <div class="vw-nav">
+              <div>01 痛点直击</div>
+              <div class="on">02 稳定复现</div>
+              <div>03 左卡右终端</div>
+              <div>04 实际验收</div>
+              <div>05 清单总结</div>
+            </div>
+            <div class="vw-stage">
+              <div class="vw-left">
+                <small>VALUE 02 · CONSISTENCY</small>
+                <h3>把好流程固化成模板，每期都稳</h3>
+                <p>外框、进度条和字幕安全槽保持固定，只替换中央真实操作与结果对比。</p>
+              </div>
+              <div class="vw-chart">
+                <div style="font-size:10px;font-weight:700;margin-bottom:4px">制作耗时与返工对比</div>
+                <div class="vw-bars">
+                  <div class="vw-bar" style="height:82%"><span>手工剪</span></div>
+                  <div class="vw-bar" style="height:56%"><span>半自动</span></div>
+                  <div class="vw-bar hi" style="height:26%"><span>模板库</span></div>
+                </div>
+              </div>
+              <div class="vw-cap">把验证过的结构存进模板，下次直接套用</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec-card">
+        <div class="spec-row">
+          <div class="spec-col">
+            <h3>当前配色令牌</h3>
+            <div class="token-chips" id="token-chips">
+              <span class="tchip"><i style="background:#2D1D59"></i>外框 #2D1D59</span>
+              <span class="tchip"><i style="background:#FFFFFF"></i>画布 #FFFFFF</span>
+              <span class="tchip"><i style="background:#6338E0"></i>重点 #6338E0</span>
+              <span class="tchip"><i style="background:#151321"></i>终端 #151321</span>
+            </div>
+          </div>
+          <div class="spec-col">
+            <h3>绑定动效参数（无震屏 / 无闪白）</h3>
+            <div class="motion-list">
+              <span class="mchip">平滑推镜 <small>420ms · 1.15×</small></span>
+              <span class="mchip">单点高亮 <small>260ms</small></span>
+              <span class="mchip">安全区字幕 <small>160ms</small></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="skeleton" id="skeleton">
+          <div class="sk-step"><small>01 · 8s</small><b>痛点直击</b></div>
+          <div class="sk-step"><small>02 · 10s</small><b>步数预期锚点</b></div>
+          <div class="sk-step"><small>03 · 28s</small><b>左卡右真机实操</b></div>
+          <div class="sk-step"><small>04 · 14s</small><b>真实回显验收</b></div>
+        </div>
+      </div>
+
+      <div class="rfoot">
+        <span class="guard"><i data-i="shield"></i>已启用 5 条防廉价护栏：不复述口播、不画假界面、一屏一焦点</span>
+        <button type="button" class="btn primary">套用此模板新建作品<i data-i="arrow"></i></button>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="art.js"></script>
+<script>
+const PALETTES = {
+  'crisp-violet': { name: '清锐紫白', start: '#2D1D59', end: '#4C2E96', stage: '#FFFFFF', alt: '#F5F3FF', dark: '#151321', ink: '#161423', sub: '#524D69', accent: '#6338E0', soft: '#EDE8FF', capBg: '#FFFFFF', capBorder: '#7B56EB', capInk: '#3A1F8A', capSub: '#ECE9F8', prog: '#9B7BFF' },
+  'celadon-paper': { name: '黛青宣纸', start: '#1A4B43', end: '#276A5E', stage: '#F9F7F1', alt: '#EDF2EF', dark: '#15201D', ink: '#1A231F', sub: '#4B5954', accent: '#19544B', soft: '#DCEBE5', capBg: '#FFFFFF', capBorder: '#2A7367', capInk: '#174A42', capSub: '#E6F0EC', prog: '#7AC7B3' },
+  'warm-amber': { name: '暖光琥珀', start: '#2E2218', end: '#4A3523', stage: '#FFFDF8', alt: '#FBF3E4', dark: '#1D1712', ink: '#241C15', sub: '#665647', accent: '#C46D1F', soft: '#FCEBD5', capBg: '#FFFDF8', capBorder: '#D98632', capInk: '#7A3E0A', capSub: '#F5E7D3', prog: '#F0AE5A' },
+  'cinema-slate': { name: '夜幕影棚', start: '#0E1319', end: '#1B2532', stage: '#141B24', alt: '#1D2734', dark: '#0B0F14', ink: '#EEF3F8', sub: '#9CB0C4', accent: '#38BDF8', soft: '#163247', capBg: '#16202B', capBorder: '#38BDF8', capInk: '#E6F6FE', capSub: '#9CB0C4', prog: '#38BDF8' },
+}
+const TPLS = {
+  'framed-screencast': { name: '竖屏外框录屏教程', aspect: '9:16', pal: 'crisp-violet', sk: [['01 · 8s', '痛点直击'], ['02 · 10s', '步数预期锚点'], ['03 · 28s', '左卡右真机实操'], ['04 · 14s', '真实回显验收']] },
+  'courseware-deck': { name: '横屏交互课件长教程', aspect: '16:9', pal: 'crisp-violet', sk: [['01 · 12s', '开场目标与目录'], ['02 · 30s', '核心概念可视化'], ['03 · 45s', '真实案例+等待压缩'], ['04 · 18s', '全片清单回收']] },
+  'contrast-opinion': { name: '明暗三段观点拆解', aspect: '9:16', pal: 'crisp-violet', sk: [['01 · 10s', '深底强判断开场'], ['02 · 20s', '浅底现象对照'], ['03 · 32s', '四步单点高亮'], ['04 · 12s', '深底口诀回收']] },
+  'matrix-compare': { name: '同构矩阵横评合集', aspect: '9:16', pal: 'crisp-violet', sk: [['01 · 8s', '多格成品矩阵预告'], ['02 · 24s', '对象 01 同框实测'], ['03 · 24s', '对象 02 横向对比'], ['04 · 12s', '回到原矩阵收束']] },
+  'evidence-split': { name: '左证右析文件解读', aspect: '16:9', pal: 'celadon-paper', sk: [['01 · 10s', '公开文件局部高亮'], ['02 · 26s', '左原文右解读'], ['03 · 20s', '红线与 1-2-3 阶梯'], ['04 · 10s', '来源与边界回收']] },
+  'anchored-cinema': { name: '空间锚点连续运镜', aspect: '16:9', pal: 'cinema-slate', sk: [['01 · 10s', '定场不变地标锚'], ['02 · 18s', '同锚换机位推进'], ['03 · 16s', '局部变化对照'], ['04 · 10s', '全景留白收尾']] },
+}
+const wrap = document.getElementById('live-wrap')
+const v916 = document.getElementById('view-916')
+const v169 = document.getElementById('view-169')
+const b916 = document.getElementById('btn-916')
+const b169 = document.getElementById('btn-169')
+
+function applyPalette(id) {
+  const p = PALETTES[id] || PALETTES['crisp-violet']
+  const map = { '--v-shell-start': p.start, '--v-shell-end': p.end, '--v-stage': p.stage, '--v-stage-alt': p.alt, '--v-dark': p.dark, '--v-ink': p.ink, '--v-sub': p.sub, '--v-accent': p.accent, '--v-accent-soft': p.soft, '--v-cap-bg': p.capBg, '--v-cap-border': p.capBorder, '--v-cap-ink': p.capInk, '--v-cap-sub': p.capSub, '--v-progress': p.prog }
+  Object.entries(map).forEach(([k, v]) => wrap.style.setProperty(k, v))
+  document.getElementById('stage-pal-label').textContent = '· ' + p.name
+  document.getElementById('token-chips').innerHTML =
+    `<span class="tchip"><i style="background:${p.start}"></i>外框 ${p.start}</span>` +
+    `<span class="tchip"><i style="background:${p.stage}"></i>画布 ${p.stage}</span>` +
+    `<span class="tchip"><i style="background:${p.accent}"></i>重点 ${p.accent}</span>` +
+    `<span class="tchip"><i style="background:${p.dark}"></i>终端 ${p.dark}</span>`
+  document.querySelectorAll('.pal-btn').forEach((b) => {
+    const on = b.dataset.pal === id
+    b.classList.toggle('on', on)
+    b.setAttribute('aria-checked', String(on))
+  })
+}
+function setAspect(a) {
+  const is916 = a === '9:16'
+  v916.hidden = !is916
+  v169.hidden = is916
+  b916.classList.toggle('on', is916)
+  b169.classList.toggle('on', !is916)
+  b916.setAttribute('aria-selected', String(is916))
+  b169.setAttribute('aria-selected', String(!is916))
+}
+function applyTemplate(id) {
+  const t = TPLS[id] || TPLS['framed-screencast']
+  document.getElementById('stage-name').textContent = t.name
+  document.getElementById('skeleton').innerHTML = t.sk.map(([s, b]) => `<div class="sk-step"><small>${s}</small><b>${b}</b></div>`).join('')
+  document.querySelectorAll('.tpl-card').forEach((c) => c.classList.toggle('on', c.dataset.tpl === id))
+  setAspect(t.aspect)
+  applyPalette(t.pal)
+}
+document.querySelectorAll('.pal-btn').forEach((b) => b.addEventListener('click', () => applyPalette(b.dataset.pal)))
+document.querySelectorAll('.tpl-card').forEach((c) => c.addEventListener('click', () => applyTemplate(c.dataset.tpl)))
+b916.addEventListener('click', () => setAspect('9:16'))
+b169.addEventListener('click', () => setAspect('16:9'))
+document.getElementById('anim-toggle').addEventListener('click', (e) => {
+  const paused = wrap.classList.toggle('paused')
+  e.currentTarget.lastChild.textContent = paused ? '播放动画' : '暂停动画'
+})
+const q = new URLSearchParams(location.search)
+if (q.get('tpl')) applyTemplate(q.get('tpl'))
+if (q.get('pal')) applyPalette(q.get('pal'))
+if (q.get('aspect')) setAspect(q.get('aspect'))
+</script>
+</body>
+</html>
