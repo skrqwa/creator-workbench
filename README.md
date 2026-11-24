@@ -4,7 +4,9 @@
 
 [下载安装包](https://github.com/skrqwa/creator-workbench/releases/latest) · [查看安装包测试](https://github.com/skrqwa/creator-workbench/actions/workflows/desktop.yml)
 
-![录屏教程的分镜编辑器](build/preview.webp)
+![宣纸浅色主题下编辑《用标签找回写作灵感》，左侧编排分镜，右侧预览成片](build/studio-v2-light.webp)
+
+[查看同一工程的夜墨深色界面](build/studio-v2-dark.webp)
 
 ## 从第一期开始
 
