@@ -31,6 +31,31 @@ async function launch() {
 }
 const state = () => page.evaluate(() => window.studio.call('bootstrap'));
 
+async function checkMixedConfirmation() {
+  await page.evaluate(async () => {
+    await window.studio.call('accounts.save', {account: {platform:'wechat', name:'文章复核样例', channel:'browser'}});
+    await window.studio.call('accounts.save', {account: {platform:'bilibili', name:'视频直投样例', channel:'api', capabilities:['submit']}});
+  });
+  await page.reload();
+  const navigation = page.getByRole('navigation', {name:'创作流程'});
+  await navigation.getByRole('link', {name:'八平台分发'}).click();
+  await page.getByRole('button', {name:'批量核对', exact:true}).click();
+  const picker = page.getByRole('dialog', {name:'批量核对'});
+  await picker.getByRole('checkbox', {name:/文章复核样例/}).check();
+  await picker.getByRole('checkbox', {name:/视频直投样例/}).check();
+  await picker.getByRole('combobox', {name:'视频直投样例的发布方式'}).selectOption('submit');
+  await picker.getByRole('button', {name:/核对所选账号/}).click();
+
+  // 尚未导出的视频无法预览，确认页只能计入可复核的文章。
+  const confirm = page.getByRole('dialog', {name:'确认本次发布'});
+  await confirm.getByText(/本次 1 个账号去平台复核，0 个账号直接提交/).waitFor();
+  await confirm.getByText('本次跳过', {exact:true}).waitFor();
+  assert.ok(await confirm.getByRole('button', {name:'确认处理 1 个账号'}).isEnabled());
+  await confirm.getByRole('button', {name:'返回修改'}).click();
+  assert.deepEqual(await page.evaluate(() => window.studio.call('receipts.list')), []);
+  await navigation.getByRole('link', {name:'内容创作'}).click();
+}
+
 try {
   if (artifactDir) await fs.mkdir(artifactDir,{recursive:true});
   await launch();
@@ -57,6 +82,7 @@ try {
     await page.waitForFunction(async old => (await window.studio.call('bootstrap')).project.scenes[0].media !== old, initial.scenes[0].media);
     const current = (await state()).project;
     assert.match(current.scenes[0].media,/\.png$/i);
+    if (kind==='tutorial') await checkMixedConfirmation();
     if (artifactDir) await page.screenshot({path:path.join(artifactDir,kind+'-editor.png')});
 
     await page.getByTestId('export-project').click();

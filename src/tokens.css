@@ -64,6 +64,7 @@
 
   /* 八大平台低饱和微标色 */
   --plat-douyin: #292e33;
+  --plat-douyin-outline: transparent;
   --plat-xiaohongshu: #b8443b;
   --plat-bilibili: #3680b0;
   --plat-channels: #ad7722;
@@ -91,6 +92,7 @@ body.dark {
   --ink: #ebf0ed;
   --sub: #b2beb9;
   --muted: #8e9e97;
+  --plat-douyin-outline: var(--muted);
 
   --jade: #7ac7b3;
   --jade-btn: #236b5c;

@@ -326,7 +326,7 @@ function MediaFrame({ scene, elapsed, sourceTime, length, rate, playing, caption
         </div>
         {!playing && endZoom > 1 && <div className="studio-focus-guide" aria-hidden="true"
           style={{ width: (zoom / endZoom * 100) + '%', height: (zoom / endZoom * 100) + '%' }}>
-          <i /><i /><i /><i /><span className="tabular-nums">推镜 {endZoom}×</span>
+          <i /><i /><i /><i />
         </div>}
       </> : <div className="studio-stage-empty"><ImagePlus size={30} aria-hidden="true" />本镜还没有画面</div>}
     </div>
@@ -456,7 +456,10 @@ function ChapterPlayer({ project, sceneId, setSceneId, portrait, shortList, soun
             }}>{s.title || '未命名'}</button>)}
         </div>}
       </div>
-      <span className="studio-time tabular-nums"><b>{duration(current)}</b> / {duration(total)}</span>
+      <div className="studio-playback-meta tabular-nums">
+        {!playing && scene?.media && scene.zoom > 1 && <small>推镜 {scene.zoom}×</small>}
+        <span className="studio-time"><b>{duration(current)}</b> / {duration(total)}</span>
+      </div>
     </div>
   </section>
 }
@@ -487,6 +490,13 @@ function PrintedCard({ project, pages, cardIndex, choose }) {
 function LongArticle({ project, sceneId }) {
   const frame = useRef(null)
   const sections = useRef(new Map())
+  const end = useRef(null)
+  const [moreBelow, setMoreBelow] = useState(false)
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => setMoreBelow(!entry.isIntersecting), { root: frame.current })
+    observer.observe(end.current)
+    return () => observer.disconnect()
+  }, [])
   useLayoutEffect(() => {
     const el = sections.current.get(sceneId)
     const scroll = frame.current
@@ -497,7 +507,7 @@ function LongArticle({ project, sceneId }) {
   }, [sceneId, project.scenes[0]?.id])
   const sources = new Set([project.source, ...project.scenes.map(s => s.source)]
     .map(s => typeof s === 'string' ? s : [s?.title, s?.url].filter(Boolean).join(' · ')).filter(Boolean))
-  return <section className="studio-stage studio-article-stage" aria-label="长文预览">
+  return <section className="studio-stage studio-article-stage" data-more-below={moreBelow || undefined} aria-label="长文预览">
     <article className="studio-article" tabIndex={0} ref={frame}>
       <h2>{project.name}</h2>
       {project.intro && <p>{project.intro}</p>}
@@ -511,6 +521,7 @@ function LongArticle({ project, sceneId }) {
         {[scene.text, scene.notes].filter(Boolean).map((p, j) => <p key={j}>{p}</p>)}
       </section>)}
       {sources.size > 0 && <footer>资料来源{[...sources].map(s => <p key={s}>{s}</p>)}</footer>}
+      <span className="studio-article-end" aria-hidden="true" ref={end} />
     </article>
   </section>
 }

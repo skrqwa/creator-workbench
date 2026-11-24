@@ -9,7 +9,7 @@
   color: var(--jade-on);
   font: 700 13px/1 var(--sans);
 }
-.platform-douyin { --platform-color: var(--plat-douyin); }
+.platform-douyin { --platform-color: var(--plat-douyin); box-shadow: inset 0 0 0 1px var(--plat-douyin-outline); }
 .platform-xiaohongshu { --platform-color: var(--plat-xiaohongshu); }
 .platform-bilibili { --platform-color: var(--plat-bilibili); }
 .platform-channels { --platform-color: var(--plat-channels); }
@@ -546,6 +546,17 @@
 .publish-launch p { margin-top: 8px; text-align: center; color: var(--sub); font-size: 12px; line-height: 1.5; text-wrap: balance; }
 
 .publish-target-list, .publish-confirm-list { display: grid; gap: 10px; }
+.modal.publication-dialog { display: flex; flex-direction: column; }
+.publication-dialog > * { flex: none; }
+.publication-dialog > :is(.publish-confirm-list, .publication-proof.compact) {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+.publication-dialog > .dialog-note { margin-top: 14px; }
+.publish-confirm-list { align-content: start; }
 .publish-target, .publish-confirm-group {
   padding: 13px;
   border: 1px solid var(--line);
@@ -574,6 +585,9 @@
 .publication-proof figure img { max-width: 100%; max-height: 150px; border-radius: var(--r-sm); }
 .publication-proof figcaption { font-size: 12px; color: var(--muted); }
 .publication-proof video { display: block; max-height: 300px; width: 100%; background: var(--paper-2); border-radius: var(--r-sm); }
+.publication-proof.compact { padding: 12px; }
+.publication-proof.compact figure img { max-height: 90px; }
+.publication-proof.compact video { max-height: min(22vh, 160px); }
 .publication-proof p { margin: 12px 0 0; color: var(--sub); white-space: pre-wrap; line-height: 1.7; }
 .proof-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 6px; margin-top: 12px; }
 .proof-gallery img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: var(--r-sm); background: var(--paper-2); }

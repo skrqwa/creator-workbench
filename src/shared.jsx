@@ -95,7 +95,7 @@ export function Empty({ icon: Icon = FolderOpen, title, children, action }) {
   )
 }
 
-export function Modal({ title, subtitle, children, onClose, wide = false, pending = false }) {
+export function Modal({ title, subtitle, children, onClose, wide = false, pending = false, className = '' }) {
   const id = useId()
   const ref = useRef(null)
   const closeRef = useRef(onClose)
@@ -152,7 +152,7 @@ export function Modal({ title, subtitle, children, onClose, wide = false, pendin
     >
       <section
         ref={ref}
-        className={`modal ${wide ? 'wide' : ''}`}
+        className={`modal ${wide ? 'wide' : ''} ${className}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={id}

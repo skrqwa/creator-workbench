@@ -38,6 +38,29 @@ test('工程重开保留引言和平台版本，并拒绝过期编辑及过期�
   assert.throws(()=>safeAsset(root,'../profile/workspace.json'),/路径/);
   assert.throws(()=>projectDirectory(root,'..'),/目录/);
 });
+test('旧索引和目录别名可以重开原工程，独立副本仍会被拒绝', async t => {
+  const {temp, lib, project, root} = await fixture(t);
+  const alias = path.join(temp, 'works-alias');
+  await fs.symlink(lib.defaultRoot, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const aliasedProject = path.join(alias, project.id);
+  lib.config.projects[0].folder = aliasedProject;
+  lib.persist();
+
+  const reopened = new Library(lib.stateDir, alias);
+  assert.equal(reopened.open(project.id).id, project.id);
+  assert.equal(reopened.openFolder(aliasedProject).id, project.id);
+  assert.equal(reopened.root(), await fs.realpath(root));
+  const copy = path.join(temp, 'independent-copy');
+  await fs.cp(root, copy, {recursive: true});
+  assert.throws(() => reopened.openFolder(copy), /另一份副本/);
+  assert.equal(reopened.root(), await fs.realpath(root));
+  const moved = path.join(temp, 'relocated');
+  await fs.rename(root, moved);
+  assert.equal(reopened.openFolder(moved).id, project.id);
+
+  const created = await reopened.create('tutorial', '从别名新建', null, null, true);
+  assert.equal(reopened.root(), await fs.realpath(path.join(alias, created.id)));
+});
 test('同稿跨账号独立，未确认的提交在重启后不会自动重发',async t=>{
   const {root,project}=await fixture(t);
   const l=new Ledger(root);

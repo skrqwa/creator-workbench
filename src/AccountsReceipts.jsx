@@ -562,6 +562,7 @@ export function ReceiptsPage({
           title="只补投这个账号？"
           subtitle={`${platform(retry.platform)} · ${retry.accountName}`}
           onClose={() => setRetry(null)}
+          className="publication-dialog"
         >
           <div className="retry-info">
             <strong>{retry.title}</strong>

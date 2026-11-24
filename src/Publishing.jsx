@@ -62,9 +62,10 @@ export function PlatformMark({ id }) {
   )
 }
 
-export function ContentPreview({ content, platform }) {
+export function ContentPreview({ content, platform, compact = false }) {
   return (
-    <article className="publication-proof">
+    <article className={compact ? 'publication-proof compact' : 'publication-proof'}
+      tabIndex={compact ? 0 : undefined} aria-label={compact ? '补投稿件预览' : undefined}>
       <div className="proof-byline">
         <PlatformMark id={platform.id} />
         <strong>{platform.label}</strong>
@@ -964,15 +965,18 @@ function TargetSelection({
 function ConfirmPublication({ confirmation, platforms, onClose, publishGroups }) {
   const { targets, previews, errors, revision } = confirmation
   const approved = targets.filter(({ account }) => previews[account.platform] && !errors[account.platform])
+  const submitCount = approved.filter(({ mode }) => mode === 'submit').length
+  const skipped = targets.length - approved.length
   const ids = [...new Set(targets.map(({ account }) => account.platform))]
   return (
     <Modal
       title="确认本次发布"
       subtitle={'共 ' + targets.length + ' 个账号，请核对稿件与各账号的处理方式。'}
       onClose={onClose}
+      className="publication-dialog"
       wide
     >
-      <div className="publish-confirm-list">
+      <div className="publish-confirm-list" role="region" aria-label="各账号稿件预览" tabIndex={0}>
         {ids.map((id) => (
           <section className="publish-confirm-group" key={id}>
             {targets
@@ -981,25 +985,21 @@ function ConfirmPublication({ confirmation, platforms, onClose, publishGroups })
                 <div className="publish-confirm-account" key={account.id}>
                   <PlatformMark id={id} />
                   <strong>{account.name}</strong>
-                  <span>{modeLabels[mode]}</span>
+                  <span>{errors[id] || !previews[id] ? '本次跳过' : modeLabels[mode]}</span>
                 </div>
               ))}
-            {errors[id] ? (
-              <ErrorLine message={errors[id]} />
-            ) : (
+            {previews[id] && !errors[id] ? (
               <ContentPreview content={previews[id]} platform={platforms.find((p) => id === p.id)} />
+            ) : (
+              <ErrorLine message={errors[id] || '无法预览稿件，请返回修改后重新核对。'} />
             )}
           </section>
         ))}
       </div>
       <p className="dialog-note">
-        {targets.some((target) => target.mode === 'submit')
-          ? '确认后，标为直接提交的账号将向平台发起投稿。你可以到发布记录回查结果。'
-          : '确认后，工作台会为选中的账号准备稿件。请到对应平台继续复核。'}
+        本次 {approved.length - submitCount} 个账号去平台复核，{submitCount} 个账号直接提交。
+        {skipped > 0 && `另有 ${skipped} 个账号预览失败，本次跳过。`}
       </p>
-      {approved.length < targets.length && (
-        <p className="dialog-note">只处理已生成预览的账号。其余稿件可修改后再次核对。</p>
-      )}
       <div className="dialog-actions">
         <Button onClick={onClose}>返回修改</Button>
         <Button
