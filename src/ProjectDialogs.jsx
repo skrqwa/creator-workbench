@@ -191,11 +191,11 @@ export function NewProject({
   )
 }
 
-export function LibraryDialog({ projects, current, open, openFolder, onClose }) {
+export function LibraryDialog({ projects, current, open, openFolder, newProject, onClose }) {
   const [filter, setFilter] = useState('')
   const list = projects.filter((p) => p.name?.toLowerCase().includes(filter.toLowerCase()))
   return (
-    <Modal title="打开项目" onClose={onClose}>
+    <Modal title="项目库" onClose={onClose}>
       <div className="stack">
         <label className="search-input">
           <Search size={16} />
@@ -236,6 +236,9 @@ export function LibraryDialog({ projects, current, open, openFolder, onClose }) 
         <div className="dialog-actions">
           <Button icon={FolderOpen} onClick={openFolder}>
             从文件夹打开
+          </Button>
+          <Button icon={Plus} tone="primary" onClick={newProject}>
+            新建项目
           </Button>
         </div>
       </div>
@@ -307,7 +310,7 @@ export function ExportDialog({ project, onClose, render, run, busy, progress }) 
   )
   const show = (path) => run('正在显示导出文件', () => call('file.show', { path }))
   return (
-    <Modal title="导出作品" subtitle={project.name} pending={busy} onClose={onClose}>
+    <Modal title="导出成品" subtitle={project.name} pending={busy} onClose={onClose}>
       <div className="stack">
         {outputs ? (
           <>

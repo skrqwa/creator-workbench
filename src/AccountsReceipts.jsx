@@ -1,7 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import {
   ArrowUpRight,
+  BadgeCheck,
+  BookOpenCheck,
+  CircleAlert,
+  CircleCheck,
+  CircleX,
+  Clock3,
   ClipboardCheck,
+  FileText,
+  Layers,
+  ListFilter,
+  Send,
   ExternalLink,
   Link2,
   LogIn,
@@ -26,8 +36,8 @@ import {
   shortDate,
 } from './shared'
 
-function AccountForm({ account, platforms, onClose, save }) {
-  const [id, setId] = useState(account?.platform || platforms[0]?.id || '')
+function AccountForm({ account, platforms, initialPlatform, onClose, save }) {
+  const [id, setId] = useState(account?.platform || initialPlatform || platforms[0]?.id || '')
   const platform = platforms.find((p) => p.id === id)
   const [name, setName] = useState(account?.name || '')
   const [channel, setChannel] = useState(account?.channel || platform?.channels[0] || '')
@@ -109,7 +119,7 @@ function AccountForm({ account, platforms, onClose, save }) {
           <p className="inline-note">保存后，通过「登录平台」打开此账号的独立登录窗口。</p>
         )}
         {channel === 'plugin' && (
-          <Field label="平台用户 ID（选填）" hint="填写稳定的用户 ID，可供插件与目标账号核对。">
+          <Field label="平台用户编号（选填）" hint="插件会用这个编号核对目标账号。">
             <input value={platformUid} onChange={(e) => setPlatformUid(e.target.value)} />
           </Field>
         )}
@@ -167,54 +177,47 @@ function AccountForm({ account, platforms, onClose, save }) {
   )
 }
 
-export function AccountsPage({ accounts, platforms, setAccounts, run, notify }) {
+export function AccountsPage({ accounts, platforms, setAccounts, run, notify, adding, setAdding }) {
   const [form, setForm] = useState(null)
   const [remove, setRemove] = useState(null)
   const [filter, setFilter] = useState('all')
   const list = accounts.filter((a) => filter === 'all' || a.platform === filter)
   const platform = (id) => platforms.find((p) => p.id === id)?.label || id
+  function closeForm() {
+    setForm(null)
+    setAdding(false)
+  }
   function save(account) {
     run('正在保存账号', async () => {
       const result = await call('accounts.save', { account })
       setAccounts(result)
-      setForm(null)
+      closeForm()
       notify('账号设置已保存')
     })
   }
   return (
-    <div>
-      <div className="page-intro with-action">
-        <div>
-          <div className="page-mark">
-            <Users size={18} />
-          </div>
-          <h1>发布账号</h1>
-          <p>按平台管理账号和投稿权限。</p>
-        </div>
-        <Button icon={Plus} tone="primary" onClick={() => setForm({})}>
-          添加账号
-        </Button>
+    <div className="accounts-page">
+      <div className="page-intro">
+        <h1>发布账号</h1>
+        <p>共配置 {accounts.length} 个账号，已覆盖 {new Set(accounts.map((a) => a.platform)).size} 个平台。</p>
       </div>
-      <section className="panel">
-        <div className="panel-header">
-          <h2>
-            <Users />
-            已配置的账号 <span className="count">{accounts.length}</span>
-          </h2>
-          <select
-            className="compact-select"
-            aria-label="按平台筛选账号"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            <option value="all">全部平台</option>
-            {platforms.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="ledger-layout">
+        <aside className="ledger-filters" aria-label="按平台筛选账号">
+          <h2><ListFilter size={15} aria-hidden="true" />发布平台</h2>
+          <button type="button" className="ledger-filter" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+            <Layers size={16} aria-hidden="true" />全部平台 <span>{accounts.length}</span>
+          </button>
+          {platforms.map((p) => (
+            <button key={p.id} type="button" className="ledger-filter" aria-pressed={filter === p.id}
+              onClick={() => setFilter(p.id)}>
+              <PlatformMark id={p.id} />{p.label}<span>{accounts.filter((a) => a.platform === p.id).length}</span>
+            </button>
+          ))}
+        </aside>
+        <section className="panel ledger-panel">
+          <div className="panel-header">
+            <h2><Users aria-hidden="true" />{filter === 'all' ? '已配置的账号' : platform(filter)} <span className="count">{list.length}</span></h2>
+          </div>
         {list.length ? (
           <div className="account-list">
             {list.map((a) => (
@@ -227,7 +230,8 @@ export function AccountsPage({ accounts, platforms, setAccounts, run, notify }) 
                   </small>
                 </div>
                 <span className="permission-text">
-                  {a.capabilities?.includes('submit') ? '可直接提交' : '去平台确认'}
+                  <BadgeCheck size={14} aria-hidden="true" />
+                  {a.capabilities?.includes('submit') ? '允许直接提交' : '去平台复核'}
                 </span>
                 <div className="account-actions">
                   {a.channel === 'browser' && (
@@ -261,7 +265,7 @@ export function AccountsPage({ accounts, platforms, setAccounts, run, notify }) 
             icon={Users}
             title={accounts.length ? '此平台还没有账号' : '添加第一个发布账号'}
             action={
-              <Button icon={Plus} onClick={() => setForm({})}>
+              <Button icon={Plus} onClick={() => setAdding(true)}>
                 添加账号
               </Button>
             }
@@ -269,12 +273,14 @@ export function AccountsPage({ accounts, platforms, setAccounts, run, notify }) 
             同一平台可以连接多个账号，并分别设置投稿权限。
           </Empty>
         )}
-      </section>
-      {form && (
+        </section>
+      </div>
+      {(form || adding) && (
         <AccountForm
           platforms={platforms}
-          account={form.account}
-          onClose={() => setForm(null)}
+          initialPlatform={filter === 'all' ? undefined : filter}
+          account={form?.account}
+          onClose={closeForm}
           save={save}
         />
       )}
@@ -321,10 +327,11 @@ const states = {
   withdrawn: ['已撤回', 'warn'],
 }
 function StatePill({ status }) {
-  const [label, tone] = states[status] || [status || '待核验', 'warn']
+  const [label, tone] = states[status] || ['待核验', 'warn']
+  const Icon = { info: Clock3, ok: CircleCheck, error: CircleX, warn: CircleAlert }[tone]
   return (
     <span className={`state-pill ${tone}`}>
-      <i />
+      <Icon size={14} aria-hidden="true" />
       {label}
     </span>
   )
@@ -425,40 +432,35 @@ export function ReceiptsPage({
       notify('已保存人工核对结果')
     })
   }
+  const filters = [
+    ['all', '全部记录', Layers],
+    ...Object.entries(states)
+      .filter(([status]) => ['draft', 'reviewing', 'published', 'unknown', 'failed'].includes(status)
+        || receipts.some((r) => r.status === status))
+      .map(([status, [label]]) => [status, label,
+        ({ draft: FileText, reviewing: Clock3, published: CircleCheck, failed: CircleX, unknown: CircleAlert })[status] || Send]),
+  ]
   return (
-    <div>
-      <div className="page-intro with-action">
-        <div>
-          <div className="page-mark">
-            <ClipboardCheck size={18} />
-          </div>
-          <h1>发布记录</h1>
-          <p>{project?.name || '打开项目后可以查看发布记录。'}</p>
-        </div>
-        <Button icon={RefreshCw} onClick={() => run('正在刷新发布记录', reload)} disabled={!project}>
-          刷新记录
-        </Button>
+    <div className="archive-page">
+      <div className="page-intro">
+        <div className="project-type"><BookOpenCheck size={14} aria-hidden="true" />作品回执</div>
+        <h1>发布记录</h1>
+        <p>{project ? `${project.name} · 共 ${receipts.length} 条投稿记录` : '打开作品后，可以查看各个平台的回执。'}</p>
       </div>
-      <section className="panel">
-        <div className="panel-header">
-          <h2>
-            <ClipboardCheck />
-            账号回执 <span className="count">{receipts.length}</span>
-          </h2>
-          <select
-            className="compact-select"
-            aria-label="按状态筛选发布记录"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            <option value="all">全部状态</option>
-            {Object.entries(states).map(([key, v]) => (
-              <option key={key} value={key}>
-                {v[0]}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="ledger-layout">
+        <aside className="ledger-filters" aria-label="按状态筛选发布记录">
+          <h2><ListFilter size={15} aria-hidden="true" />回执状态</h2>
+          {filters.map(([key, label, Icon]) => (
+            <button key={key} className="ledger-filter" type="button" aria-pressed={filter === key}
+              onClick={() => setFilter(key)}><Icon size={17} aria-hidden="true" />
+              {label}<span>{key === 'all' ? receipts.length : receipts.filter((r) => r.status === key).length}</span>
+            </button>
+          ))}
+        </aside>
+        <section className="panel ledger-panel">
+          <div className="panel-header">
+            <h2><ClipboardCheck aria-hidden="true" />账号回执 <span className="count">{items.length}</span></h2>
+          </div>
         {items.length ? (
           <div className="receipts-list">
             {items.map((r) => (
@@ -529,7 +531,7 @@ export function ReceiptsPage({
                           setUrl('')
                         }}
                       >
-                        <Link2 size={14} />
+                        <Link2 size={14} aria-hidden="true" />
                         补充作品链接
                       </button>
                     )}
@@ -545,7 +547,7 @@ export function ReceiptsPage({
               project &&
               !receipts.length && (
                 <Button icon={SendIcon} onClick={openPublish}>
-                  前往多平台发布
+                  前往八平台分发
                 </Button>
               )
             }
@@ -553,7 +555,8 @@ export function ReceiptsPage({
             {receipts.length ? '切换状态即可查看其他回执。' : '发起投稿后，每个目标账号会有独立记录。'}
           </Empty>
         )}
-      </section>
+        </section>
+      </div>
       {retry && (
         <Modal
           title="只补投这个账号？"

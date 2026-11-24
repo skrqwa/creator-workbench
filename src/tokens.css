@@ -15,6 +15,9 @@
   --line: #e3dfd5;
   --line-2: #cfc9bc;
   --topbar: rgba(252, 251, 248, 0.88);
+  --scrim: rgba(26, 35, 31, 0.48);
+  /* 播放器边框与字幕始终置于媒体画面上。 */
+  --media-dark: #292e33;
 
   /* 文字色（相对 --paper / --card 均 >= 4.70:1） */
   --ink: #1a231f;
@@ -83,6 +86,7 @@ body.dark {
   --line: #25302b;
   --line-2: #36453e;
   --topbar: rgba(18, 24, 21, 0.9);
+  --scrim: rgba(4, 9, 7, 0.67);
 
   --ink: #ebf0ed;
   --sub: #b2beb9;
@@ -122,6 +126,7 @@ body.dark {
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
   }
 }

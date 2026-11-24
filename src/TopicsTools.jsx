@@ -1,190 +1,485 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowDownToLine,
+  ArrowRight,
+  Bookmark,
+  CheckCircle2,
+  ChevronRight,
   CircleDot,
-  Clapperboard,
+  ClipboardList,
+  Code2,
   ExternalLink,
+  FileSearch,
   FolderOpen,
   Inbox,
   Link2,
   Mic,
-  Monitor,
   MonitorPlay,
   Plus,
   RefreshCw,
+  Repeat2,
   Rss,
   Save,
   Search,
-  Settings2,
-  SquarePen,
+  Sparkles,
   Wand2,
 } from 'lucide-react'
-import { Button, call, Empty, Field, IconButton, shortDate } from './shared'
+import { Button, call, Empty, Field, IconButton, kindLabels, Modal, shortDate } from './shared'
+import './topics-tools.css'
 
-export function TopicsPage({ topics, setTopics, newFrom, run, notify }) {
-  const [input, setInput] = useState('')
-  const [manualTitle, setTitle] = useState('')
-  const [url, setUrl] = useState('')
-  const [filter, setFilter] = useState('')
-  const [tab, setTab] = useState('feed')
-  const items = topics.filter((t) =>
-    [t.title, t.source, t.url].filter(Boolean).join(' ').toLowerCase().includes(filter.toLowerCase()),
-  )
-  const fetchItems = (e) => {
-    e.preventDefault()
-    run('正在读取选题来源', async () => {
-      const result = await call('topics.fetch', { input: input.trim() })
-      if (!Array.isArray(result)) throw new Error('选题来源未返回可读取的列表。')
-      setTopics(result)
-      notify(`已更新选题列表，共 ${result.length} 条`)
-    })
+const sources = {
+  all: { label: '全部' },
+  feed: { label: '订阅源', icon: Rss },
+  release: { label: '开源动态', icon: Code2 },
+  manual: { label: '手工记', icon: Bookmark },
+}
+
+function topicSource(topic) {
+  let origin
+  try {
+    origin = new URL(topic.url)
+  } catch {
+    // 旧记录可能没有有效链接，仍可用原标题立项。
   }
-  const add = (e) => {
-    e.preventDefault()
-    run('正在保存选题', async () => {
-      const result = await call('topics.add', { title: manualTitle.trim(), url: url.trim() })
-      setTopics(result)
-      setTitle('')
-      setUrl('')
-      notify('手工选题已保存')
-    })
+  const github = origin?.hostname === 'github.com'
+  const kind = topic.source === '手工收藏' ? 'manual' : github ? 'release' : 'feed'
+  const segments = origin?.pathname.split('/').filter(Boolean) || []
+  const site = github ? [origin.hostname, ...segments.slice(0, 2)].join('/') : origin?.hostname
+  return { kind, site, canOpen: origin?.protocol === 'https:' || origin?.protocol === 'http:' }
+}
+
+function titleKey(title) {
+  return (title || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+}
+
+function titlePairs(value) {
+  const pairs = new Set()
+  for (let i = 1; i < value.length; i++) pairs.add(value.slice(i - 1, i + 1))
+  return pairs
+}
+
+function similarWork(title, works) {
+  const key = titleKey(title)
+  if (!key) return null
+  const exact = works.find((w) => w.key === key)
+  if (exact) return exact.name
+  if (key.length < 4) return null
+  const pairs = titlePairs(key)
+  let best = null
+  let bestScore = 0
+  // 工程索引只有作品名，按标题包含关系与相邻字对比较，不推断是否已发布。
+  for (const work of works) {
+    if (work.key.length < 4) continue
+    if (key.includes(work.key) || work.key.includes(key)) return work.name
+    let overlap = 0
+    for (const pair of pairs) if (work.pairs.has(pair)) overlap++
+    const score = (2 * overlap) / (pairs.size + work.pairs.size)
+    if (overlap >= 3 && score >= 0.65 && score > bestScore) {
+      best = work.name
+      bestScore = score
+    }
   }
+  return best
+}
+
+function CollectTopicDialog({ mode, lastInput, run, onClose, onCollected }) {
+  const manual = mode === 'manual'
+  const [address, setAddress] = useState(manual ? '' : lastInput)
+  const [title, setTitle] = useState('')
+  const [pending, setPending] = useState(false)
+  async function submit(event) {
+    event.preventDefault()
+    setPending(true)
+    try {
+      await run(manual ? '正在保存选题' : '正在读取选题来源', async () => {
+        const input = address.trim()
+        const items = manual
+          ? await call('topics.add', { title: title.trim(), url: input })
+          : await call('topics.fetch', { input })
+        if (!Array.isArray(items)) throw new Error('没有收到可读取的选题清单。')
+        onCollected(items, mode, input)
+      })
+    } finally {
+      setPending(false)
+    }
+  }
+
   return (
-    <div>
-      <div className="page-intro">
-        <div className="page-mark">
-          <Inbox size={18} />
+    <Modal title={manual ? '随手记一条' : '拉取更新'} onClose={onClose} pending={pending}>
+      <form className="stack" onSubmit={submit}>
+        {manual && (
+          <Field label="选题标题">
+            <input
+              required
+              data-focus
+              maxLength={500}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="你想讲什么？"
+            />
+          </Field>
+        )}
+        <Field
+          label={manual ? '来源链接' : '订阅地址或仓库名'}
+          hint={manual ? undefined : '可填写 RSS、Atom 地址，或用 作者名/仓库名 读取 GitHub 版本更新。'}
+        >
+          <input
+            type={manual ? 'url' : 'text'}
+            data-focus={manual ? undefined : true}
+            maxLength={2400}
+            required
+            value={address}
+            placeholder={manual ? 'https://…' : '订阅链接或作者名/仓库名'}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+        </Field>
+        <div className="dialog-actions">
+          <Button onClick={onClose} disabled={pending}>
+            取消
+          </Button>
+          <Button
+            type="submit"
+            tone="primary"
+            icon={manual ? Plus : RefreshCw}
+            disabled={pending || !address.trim() || (manual && !title.trim())}
+          >
+            {manual ? '保存选题' : '读取选题'}
+          </Button>
         </div>
-        <h1>选题收件箱</h1>
-        <p>收集来源，把选好的题目带入新项目。</p>
-      </div>
-      <div className="utility-grid">
-        <section className="panel">
-          <div className="panel-header">
-            <h2>
-              <Inbox />
-              已收集的选题 <span className="count">{topics.length}</span>
-            </h2>
-          </div>
-          <div className="list-filter">
-            <label className="search-input">
-              <Search size={16} />
-              <input
-                value={filter}
-                placeholder="按标题或来源搜索"
-                aria-label="搜索选题"
-                onChange={(e) => setFilter(e.target.value)}
-              />
-            </label>
-          </div>
-          {items.length ? (
-            <div className="topic-list">
-              {items.map((t, i) => (
-                <article className="topic-item" key={t.id || `${t.url}-${i}`}>
-                  <div className="topic-item-head">
-                    <span className="source-chip">{t.source || '手动录入'}</span>
-                    <time>{shortDate(t.publishedAt || t.addedAt)}</time>
-                  </div>
-                  <h3>{t.title || t.url}</h3>
-                  {t.url && (
-                    <button
-                      type="button"
-                      className="source-link"
-                      title={t.url}
-                      onClick={() => run('正在打开来源', () => call('file.external', { url: t.url }))}
-                    >
-                      <Link2 size={13} />
-                      <span>{t.url}</span>
-                      <ExternalLink size={12} />
-                    </button>
-                  )}
-                  <div className="topic-actions">
-                    <Button icon={Plus} className="compact" onClick={() => newFrom(t)}>
-                      用此题创作
-                    </Button>
-                  </div>
-                </article>
-              ))}
+      </form>
+    </Modal>
+  )
+}
+
+const outlines = {
+  tutorial: [
+    ['先看成品', '让观众看到操作完成后的样子。'],
+    ['演示关键步骤', '围绕一个任务录屏，指出每一步要点。'],
+    ['核对结果', '说明怎样确认做对了，以及容易卡在哪里。'],
+  ],
+  brief: [
+    ['先讲新变化', '用一句话说清发生了什么。'],
+    ['展开事实', '从原文挑出最值得解释的一条信息。'],
+    ['落到影响', '说清这件事和观众有什么关系。'],
+  ],
+}
+
+export function TopicsPage({ topics, projects = [], setTopics, newFrom, run, notify }) {
+  const [category, setCategory] = useState('all')
+  const [query, setQuery] = useState('')
+  const [selectedId, setSelectedId] = useState('')
+  const [kind, setKind] = useState('tutorial')
+  const [dialog, setDialog] = useState('')
+  const [lastInput, setLastInput] = useState('')
+  const [syncedAt, setSyncedAt] = useState('')
+  const detailHeading = useRef(null)
+  const works = useMemo(
+    () =>
+      projects.map((p) => {
+        const key = titleKey(p.name)
+        return { name: p.name, key, pairs: titlePairs(key) }
+      }),
+    [projects],
+  )
+  const entries = useMemo(
+    () =>
+      topics.map((topic) => ({
+        topic,
+        ...topicSource(topic),
+        match: similarWork(topic.title, works),
+      })),
+    [topics, works],
+  )
+  const counts = { all: topics.length, feed: 0, release: 0, manual: 0 }
+  for (const item of entries) counts[item.kind]++
+  const search = query.trim().toLowerCase()
+  const filtered = entries.filter(
+    ({ topic, kind: source }) =>
+      (category === 'all' || category === source) &&
+      [topic.title, topic.source, topic.url].some((value) => value?.toLowerCase().includes(search)),
+  )
+  const selected = filtered.find(({ topic }) => (topic.id || topic.url) === selectedId) || filtered[0]
+  const idea = selected?.topic
+  const date = idea?.publishedAt || idea?.addedAt
+  const sourceDate =
+    date && Number.isFinite(Date.parse(date))
+      ? new Date(date).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+      : ''
+  const today = new Date().toDateString()
+  const addedToday = topics.filter(
+    (t) => t.addedAt && new Date(t.addedAt).toDateString() === today,
+  ).length
+
+  function collected(items, mode, input) {
+    setTopics(items)
+    setSelectedId(items[0]?.id || items[0]?.url || '')
+    setQuery('')
+    setCategory('all')
+    if (mode === 'feed') {
+      setLastInput(input)
+      setSyncedAt(new Date().toISOString())
+    }
+    setDialog('')
+    notify(mode === 'manual' ? '选题已保存' : '已更新选题列表，共 ' + items.length + ' 条')
+  }
+  function chooseIdea(topic) {
+    setSelectedId(topic.id || topic.url)
+    if (window.matchMedia('(max-width: 840px)').matches) {
+      requestAnimationFrame(() => {
+        detailHeading.current?.focus({ preventScroll: true })
+        detailHeading.current?.scrollIntoView({ block: 'start' })
+      })
+    }
+  }
+
+  return (
+    <div className="topics-desk">
+      <section className="topics-feed-pane" aria-labelledby="topics-title">
+        <span className="topics-eyebrow">
+          <Sparkles size={13} aria-hidden="true" />
+          选题收件箱 · 对照往期作品
+        </span>
+        <div className="topics-head">
+          <div>
+            <h1 id="topics-title">选题灵感</h1>
+            <div className="topics-meta tabular-nums" role="status">
+              <span>已收录 {topics.length} 条</span>
+              <span>今日新增 {addedToday} 条</span>
+              {syncedAt && (
+                <span>
+                  刚同步于{' '}
+                  {new Date(syncedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
             </div>
-          ) : (
-            <Empty icon={filter ? Search : Inbox} title={filter ? '没有匹配的选题' : '收下第一个选题'}>
-              {filter ? '试试其他标题或来源关键词。' : '添加 RSS、GitHub 仓库或手动填写题目。'}
-            </Empty>
-          )}
-        </section>
-        <section className="panel tool-panel">
-          <div className="panel-header">
-            <h2>
-              <Plus />
-              添加来源
-            </h2>
           </div>
-          <div className="padded stack">
-            <div className="segmented" role="group" aria-label="添加来源方式">
-              <button type="button" aria-pressed={tab === 'feed'} onClick={() => setTab('feed')}>
-                <Rss size={14} />
-                订阅源
+          <div className="topics-head-actions">
+            <Button icon={RefreshCw} onClick={() => setDialog('feed')}>
+              拉取更新
+            </Button>
+            <Button icon={Plus} tone="primary" onClick={() => setDialog('manual')}>
+              随手记一条
+            </Button>
+          </div>
+        </div>
+        <div className="topics-toolbar">
+          <div className="topics-filters" role="group" aria-label="按来源筛选选题">
+            {Object.entries(sources).map(([key, info]) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={category === key}
+                onClick={() => setCategory(key)}
+              >
+                {info.label}
+                <span className="tabular-nums">{counts[key]}</span>
               </button>
-              <button type="button" aria-pressed={tab === 'manual'} onClick={() => setTab('manual')}>
-                <SquarePen size={14} />
-                手动录入
-              </button>
-            </div>
-            {tab === 'feed' ? (
-              <form className="stack" onSubmit={fetchItems}>
-                <Field label="RSS 地址或 GitHub 仓库" hint="支持 RSS / Atom 链接和 GitHub 的 owner/repo。">
-                  <input
-                    required
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="https://… 或 owner/repo"
-                  />
-                </Field>
-                <Button type="submit" tone="primary" icon={ArrowDownToLine} disabled={!input.trim()}>
-                  读取选题
-                </Button>
-              </form>
-            ) : (
-              <form className="stack" onSubmit={add}>
-                <Field label="选题标题">
-                  <input
-                    required
-                    value={manualTitle}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="想讲什么？"
-                  />
-                </Field>
-                <Field label="来源链接">
-                  <input
-                    required
-                    type="url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://…"
-                  />
-                </Field>
+            ))}
+          </div>
+          <label className="topics-search">
+            <Search size={14} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="搜索选题"
+              value={query}
+              placeholder="搜索标题或来源…"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+        </div>
+        {filtered.length ? (
+          <ul className="topics-feed" aria-label="收录的选题">
+            {filtered.map(({ topic, site, kind: source, match }) => {
+              const SourceIcon = sources[source].icon
+              const Similarity = match ? Repeat2 : works.length ? CheckCircle2 : ClipboardList
+              const stamp = topic.publishedAt || topic.addedAt
+              const current = topic === idea
+              return (
+                <li key={topic.id || topic.url}>
+                  <button
+                    type="button"
+                    className="topic-choice"
+                    aria-pressed={current}
+                    aria-label={'查看选题策划，' + topic.title}
+                    onClick={() => chooseIdea(topic)}
+                  >
+                    <span className="topic-choice-meta">
+                      <span>
+                        <SourceIcon size={14} aria-hidden="true" />
+                        {topic.source || site || sources[source].label}
+                      </span>
+                      {stamp && (
+                        <time className="tabular-nums" dateTime={stamp}>
+                          {shortDate(stamp)}
+                        </time>
+                      )}
+                    </span>
+                    <strong>{topic.title || topic.url}</strong>
+                    {(topic.summary || topic.description) && (
+                      <span className="topic-summary">{topic.summary || topic.description}</span>
+                    )}
+                    {site && site !== topic.source && <span className="topic-site">{site}</span>}
+                    <span className="topic-choice-foot">
+                      <span className={match ? 'topic-similarity similar' : 'topic-similarity'}>
+                        <Similarity size={13} aria-hidden="true" />
+                        {match ? '有相近作品' : works.length ? '未见相近标题' : '暂无往期作品'}
+                      </span>
+                      {current && (
+                        <span className="topic-plan-link">
+                          查看策划
+                          <ArrowRight size={13} aria-hidden="true" />
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <Empty
+            icon={topics.length ? Search : Inbox}
+            title={topics.length ? '没有匹配的选题' : '收下第一个选题'}
+            action={
+              topics.length ? (
                 <Button
-                  type="submit"
-                  tone="primary"
-                  icon={Plus}
-                  disabled={!manualTitle.trim() || !url.trim()}
+                  onClick={() => {
+                    setQuery('')
+                    setCategory('all')
+                  }}
                 >
-                  保存选题
+                  清除筛选
                 </Button>
-              </form>
+              ) : (
+                <Button icon={Link2} onClick={() => setDialog('feed')}>
+                  添加订阅来源
+                </Button>
+              )
+            }
+          >
+            {topics.length
+              ? '换个关键词，或查看其他来源。'
+              : '从订阅源收集更新，也可以随手保存一个原文链接。'}
+          </Empty>
+        )}
+      </section>
+
+      <section className="topics-plan-pane" aria-labelledby="topic-plan-title">
+        {idea && (
+          <div className="topic-source-line">
+            {selected.canOpen && (
+              <button
+                type="button"
+                title={idea.url}
+                aria-label={'查看原文，' + (selected.site || idea.title)}
+                onClick={() => run('正在打开原文', () => call('file.external', { url: idea.url }))}
+              >
+                <Link2 size={14} aria-hidden="true" />
+                {selected.site || '查看原文'}
+                <ExternalLink size={12} aria-hidden="true" />
+              </button>
+            )}
+            {sourceDate && (
+              <time dateTime={date} className="tabular-nums">
+                {sourceDate}
+              </time>
             )}
           </div>
-        </section>
-      </div>
+        )}
+        <h2 ref={detailHeading} tabIndex={-1} id="topic-plan-title">
+          {idea?.title || '选题策划'}
+        </h2>
+        {idea ? (
+          <article className="topic-info-card">
+            <h3>选题资料</h3>
+            {!!(idea.summary || idea.description) && <p>{idea.summary || idea.description}</p>}
+            <dl>
+              <dt>收录来源</dt>
+              <dd>{idea.source || selected.site || sources[selected.kind].label}</dd>
+              {idea.addedAt && (
+                <>
+                  <dt>收录时间</dt>
+                  <dd className="tabular-nums">{shortDate(idea.addedAt)}</dd>
+                </>
+              )}
+              <dt>往期对照</dt>
+              <dd>
+                {selected.match
+                  ? '相近作品《' + selected.match + '》'
+                  : works.length
+                    ? '本机 ' + works.length + ' 个作品中未见相近标题'
+                    : '作品库暂无可对照的标题'}
+              </dd>
+            </dl>
+          </article>
+        ) : (
+          <div className="topic-plan-placeholder">
+            <FileSearch size={22} strokeWidth={1.5} aria-hidden="true" />
+            <p>选中一条灵感，在这里查看原文和相近作品。</p>
+          </div>
+        )}
+        <div className="topic-outline-card">
+          <h3>
+            三段构思提纲<span>{kindLabels[kind]}参考</span>
+          </h3>
+          <ol>
+            {outlines[kind].map(([label, prompt], i) => (
+              <li key={label}>
+                <span className="tabular-nums" aria-hidden="true">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <div>
+                  <strong>{label}</strong>
+                  <p>{prompt}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className="topic-template-row">
+          <span>立项模板</span>
+          <div className="segmented" role="group" aria-label="选择立项模板">
+            {Object.entries(kindLabels).map(([key, title]) => {
+              const Icon = key === 'tutorial' ? MonitorPlay : Mic
+              return (
+                <button type="button" aria-pressed={kind === key} key={key} onClick={() => setKind(key)}>
+                  <Icon size={14} aria-hidden="true" />
+                  {title}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <Button
+          tone="primary"
+          className="topic-create"
+          disabled={!idea}
+          onClick={() => newFrom(idea, kind)}
+        >
+          用这个选题开始创作
+          <ArrowRight size={15} aria-hidden="true" />
+        </Button>
+      </section>
+      {dialog && (
+        <CollectTopicDialog
+          mode={dialog}
+          lastInput={lastInput}
+          run={run}
+          onClose={() => setDialog('')}
+          onCollected={collected}
+        />
+      )}
     </div>
   )
 }
 
 const toolFields = [
-  { key: 'openScreenExe', label: 'OpenScreen 应用', placeholder: '选择 OpenScreen 可执行文件' },
-  { key: 'voicePython', label: '配音用 Python', placeholder: '选择本地 Python 可执行文件' },
-  { key: 'voiceScript', label: '配音脚本', placeholder: '选择配音脚本文件' },
-  { key: 'voiceTemplate', label: '声音模板', placeholder: '选择本地声音模板文件' },
+  { key: 'openScreenExe', label: 'OpenScreen 应用', placeholder: '选择本机 OpenScreen 应用' },
+  { key: 'voicePython', label: '配音用 Python', placeholder: '选择配音环境中的 Python' },
+  { key: 'voiceScript', label: '配音脚本', placeholder: '选择本地配音脚本' },
+  { key: 'voiceTemplate', label: '音色模板', placeholder: '选择要使用的声音模板' },
 ]
 
 export function ToolsPage({
@@ -193,6 +488,7 @@ export function ToolsPage({
   project,
   sceneId,
   setSceneId,
+  section,
   persist,
   applySceneMedia,
   generateVoice,
@@ -204,24 +500,63 @@ export function ToolsPage({
   const [sourceId, setSourceId] = useState('')
   const [seconds, setSeconds] = useState(10)
   const [sourceLoaded, setSourceLoaded] = useState(false)
+  const recordingHeading = useRef(null)
+  const voiceHeading = useRef(null)
   const scene = project?.scenes?.find((s) => s.id === sceneId)
-  const changed = toolFields.some((f) => (draft[f.key] || '') !== (settings?.[f.key] || ''))
+  const changed = toolFields.filter((f) => (draft[f.key] || '') !== (settings?.[f.key] || ''))
+  const voiceConfigured = toolFields.slice(1).every((f) => draft[f.key]?.trim())
+  const recordingConfigured = Boolean(draft.openScreenExe?.trim())
+
   useEffect(() => {
     setDraft(settings || {})
   }, [settings])
+  useEffect(() => {
+    const target =
+      section === 'voice'
+        ? voiceHeading.current
+        : section === 'recording'
+          ? recordingHeading.current
+          : null
+    if (target) {
+      target.focus({ preventScroll: true })
+      target.scrollIntoView({ block: 'nearest' })
+    }
+  }, [section])
+
+  function updatePath(key, value) {
+    setDraft((current) => ({ ...current, [key]: value }))
+    if (key === 'openScreenExe') {
+      setSourceLoaded(false)
+      setSources([])
+      setSourceId('')
+    }
+  }
   async function saveSettings() {
-    if (!changed) return
-    const result = await call('settings.save', { settings: draft })
-    onSettings(
-      result?.settings ||
-        (result && typeof result === 'object' && 'openScreenExe' in result ? result : draft),
-    )
+    if (!changed.length) return
+    const next = Object.fromEntries(changed.map(({ key }) => [key, draft[key] || '']))
+    const saved = await call('settings.save', { settings: next })
+    onSettings(saved)
   }
   function browse(key) {
     run('正在选择文件', async () => {
-      const result = await call('tools.choose', { key })
-      if (result) setDraft((d) => ({ ...d, [key]: result }))
+      const path = await call('tools.choose', { key })
+      if (path) updatePath(key, path)
     })
+  }
+  function pathField(f) {
+    return (
+      <Field key={f.key} label={f.label}>
+        <span className="tools-file-input">
+          <input
+            value={draft[f.key] || ''}
+            onChange={(e) => updatePath(f.key, e.target.value)}
+            placeholder={f.placeholder}
+            spellCheck={false}
+          />
+          <IconButton label={'选择' + f.label} icon={FolderOpen} onClick={() => browse(f.key)} />
+        </span>
+      </Field>
+    )
   }
   function chooseSources() {
     run('正在读取可录制的窗口', async () => {
@@ -234,13 +569,13 @@ export function ToolsPage({
     })
   }
   function capture(action) {
-    run(action === 'record' ? `正在录制 ${seconds} 秒` : '正在导入 OpenScreen 工程', async () => {
+    run(action === 'record' ? '正在录制 ' + seconds + ' 秒' : '正在导入 OpenScreen 工程', async () => {
       await persist()
       await saveSettings()
       const result = await call('tools.openscreen', {
         action,
         sceneId,
-        ...(action === 'record' ? { sourceId, duration: seconds } : {}),
+        ...(action === 'record' ? { sourceId, duration: Number(seconds) } : {}),
       })
       if (result?.path) {
         await applySceneMedia(sceneId, result.path, result.openScreenProject)
@@ -249,175 +584,183 @@ export function ToolsPage({
     })
   }
   return (
-    <div>
-      <div className="page-intro">
-        <div className="page-mark">
-          <Settings2 size={18} />
+    <div className="tools-desk">
+      <header className="tools-intro">
+        <div>
+          <h1>制作工具</h1>
+          <p>把窗口录屏和本地配音写入当前分镜。</p>
         </div>
-        <h1>制作工具</h1>
-        <p>为当前分镜录制画面、导入工程或生成旁白。</p>
+        <Button
+          icon={Save}
+          disabled={!changed.length}
+          onClick={() =>
+            run('正在保存工具设置', async () => {
+              await saveSettings()
+              notify('工具设置已保存')
+            })
+          }
+        >
+          保存工具设置
+        </Button>
+      </header>
+      <div className="tools-target">
+        <div className="tools-target-project">
+          <ClipboardList size={18} aria-hidden="true" />
+          <span>当前作品</span>
+          <strong>{project?.name || '尚未打开作品'}</strong>
+        </div>
+        <ChevronRight size={15} aria-hidden="true" />
+        <Field label="目标分镜">
+          <select
+            value={scene?.id || ''}
+            onChange={(e) => setSceneId(e.target.value)}
+            disabled={!project?.scenes?.length}
+          >
+            <option value="" disabled>
+              请先创建作品并添加分镜
+            </option>
+            {(project?.scenes || []).map((s, i) => (
+              <option key={s.id} value={s.id}>
+                {String(i + 1).padStart(2, '0')} · {s.title || '未命名分镜'}
+              </option>
+            ))}
+          </select>
+        </Field>
       </div>
-      <div className="utility-grid">
-        <div className="stack">
-          <section className="panel">
-            <div className="panel-header">
-              <h2>
-                <Clapperboard />
-                当前分镜
-              </h2>
+      <div className="tools-grid">
+        <section className="tools-sheet" aria-labelledby="tools-recording-heading">
+          <div className="tools-sheet-heading">
+            <div className="tools-glyph">
+              <MonitorPlay size={21} aria-hidden="true" />
             </div>
-            <div className="padded stack">
-              <Field label="选择要写入的分镜">
+            <div>
+              <h2 id="tools-recording-heading" ref={recordingHeading} tabIndex={-1}>
+                录屏与推镜
+              </h2>
+              <p>用 OpenScreen 录制单个窗口，或导入已有工程。</p>
+            </div>
+          </div>
+          {pathField(toolFields[0])}
+          <div className="tools-actions">
+            <Button
+              icon={ExternalLink}
+              disabled={!recordingConfigured}
+              onClick={() =>
+                run('正在启动 OpenScreen', async () => {
+                  await saveSettings()
+                  await call('tools.openscreen', { action: 'launch' })
+                  notify('已请求启动 OpenScreen')
+                })
+              }
+            >
+              启动 OpenScreen
+            </Button>
+            <Button
+              icon={FolderOpen}
+              disabled={!scene || !recordingConfigured}
+              onClick={() => capture('import')}
+            >
+              导入 OpenScreen 工程
+            </Button>
+          </div>
+          <div className="tools-record-controls">
+            <div className="tools-subhead">
+              <h3>录制到分镜</h3>
+              <Button
+                icon={RefreshCw}
+                className="compact"
+                disabled={!recordingConfigured}
+                onClick={chooseSources}
+              >
+                {sourceLoaded ? '刷新窗口' : '读取窗口'}
+              </Button>
+            </div>
+            <div className="tools-record-fields">
+              <Field label="录制窗口">
                 <select
-                  value={scene?.id || ''}
-                  onChange={(e) => setSceneId(e.target.value)}
-                  disabled={!project?.scenes?.length}
+                  value={sourceId}
+                  disabled={!sources.length}
+                  onChange={(e) =>
+                    setSourceId(sources.find((s) => String(s.id) === e.target.value)?.id || '')
+                  }
                 >
-                  <option value="" disabled>
-                    请先创建项目并添加分镜
-                  </option>
-                  {(project?.scenes || []).map((s, i) => (
+                  {!sources.length && (
+                    <option value="">
+                      {sourceLoaded ? '未发现窗口，请检查录屏权限' : '先读取可录制的窗口'}
+                    </option>
+                  )}
+                  {sources.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {String(i + 1).padStart(2, '0')} · {s.title || '未命名分镜'}
+                      {s.name}
                     </option>
                   ))}
                 </select>
               </Field>
-            </div>
-          </section>
-          <section className="panel">
-            <div className="panel-header">
-              <h2>
-                <MonitorPlay />
-                录屏与 OpenScreen
-              </h2>
-            </div>
-            <div className="padded stack">
-              <div className="tool-actions">
-                <Button
-                  icon={ExternalLink}
-                  onClick={() =>
-                    run('正在启动 OpenScreen', async () => {
-                      await saveSettings()
-                      await call('tools.openscreen', { action: 'launch' })
-                      notify('已请求启动 OpenScreen')
-                    })
-                  }
-                >
-                  启动 OpenScreen
-                </Button>
-                <Button icon={FolderOpen} disabled={!scene} onClick={() => capture('import')}>
-                  导入 OpenScreen 工程
-                </Button>
-              </div>
-              <div className="subsection">
-                <h3>
-                  <Monitor size={15} />
-                  录制屏幕或窗口
-                </h3>
-                <Button className="compact" icon={RefreshCw} onClick={chooseSources}>
-                  {sourceLoaded ? '刷新来源' : '选择录制来源'}
-                </Button>
-              </div>
-              {sourceLoaded && !sources.length && (
-                <p className="inline-note">未发现可录制的来源。请检查系统录屏权限并刷新。</p>
-              )}
-              {sources.length > 0 && (
-                <Field label="录制来源">
-                  <select value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
-                    {sources.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-              <Field label="录制时长（秒）">
+              <Field label="时长（秒）">
                 <input
+                  className="tabular-nums"
                   type="number"
-                  min="2"
-                  max="300"
-                  step="1"
+                  min={2}
+                  max={300}
+                  step={1}
                   value={seconds}
                   onChange={(e) => setSeconds(e.target.value)}
                 />
               </Field>
-              <Button
-                icon={CircleDot}
-                tone="primary"
-                disabled={
-                  !scene || !sourceId || !Number.isInteger(+seconds) || +seconds < 2 || +seconds > 300
-                }
-                onClick={() => capture('record')}
-              >
-                开始录制并导入
-              </Button>
-              {scene?.openScreenProject && (
-                <Button
-                  icon={FolderOpen}
-                  onClick={() =>
-                    run('正在定位可编辑录屏工程', () =>
-                      call('file.show', { path: scene.openScreenProject }),
-                    )
-                  }
-                >
-                  定位可编辑录屏工程
-                </Button>
-              )}
             </div>
-          </section>
-          <section className="panel">
-            <div className="panel-header">
-              <h2>
-                <Mic />
+            <Button
+              icon={CircleDot}
+              tone="primary"
+              disabled={
+                !scene || !sourceId || !Number.isInteger(+seconds) || +seconds < 2 || +seconds > 300
+              }
+              onClick={() => capture('record')}
+            >
+              开始录制并导入
+            </Button>
+            {scene?.openScreenProject && (
+              <Button
+                icon={FolderOpen}
+                onClick={() =>
+                  run('正在定位可编辑录屏工程', () =>
+                    call('file.show', { path: scene.openScreenProject }),
+                  )
+                }
+              >
+                定位可编辑录屏工程
+              </Button>
+            )}
+          </div>
+        </section>
+        <section className="tools-sheet" aria-labelledby="tools-voice-heading">
+          <div className="tools-sheet-heading">
+            <div className="tools-glyph">
+              <Mic size={21} aria-hidden="true" />
+            </div>
+            <div>
+              <h2 id="tools-voice-heading" ref={voiceHeading} tabIndex={-1}>
                 分镜配音
               </h2>
+              <p>选择本机 Qwen 配音环境和音色模板。</p>
             </div>
-            <div className="padded stack">
-              {scene?.text && <blockquote className="excerpt">{scene.text}</blockquote>}
-              <Button
-                icon={Wand2}
-                tone="voice"
-                disabled={!scene?.text?.trim()}
-                onClick={() => generateVoice(saveSettings)}
-              >
-                用当前旁白生成配音
-              </Button>
-            </div>
-          </section>
-        </div>
-        <section className="panel tool-panel">
-          <div className="panel-header">
-            <h2>
-              <Settings2 />
-              工具路径
-            </h2>
           </div>
-          <div className="padded stack">
-            {toolFields.map((f) => (
-              <Field key={f.key} label={f.label}>
-                <span className="file-input">
-                  <input
-                    value={draft[f.key] || ''}
-                    onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
-                    placeholder={f.placeholder}
-                  />
-                  <IconButton label={`选择${f.label}`} icon={FolderOpen} onClick={() => browse(f.key)} />
-                </span>
-              </Field>
-            ))}
+          {toolFields.slice(1).map(pathField)}
+          <div className="tools-voice-preview">
+            <h3>本镜旁白</h3>
+            {scene?.text ? (
+              <blockquote>{scene.text}</blockquote>
+            ) : (
+              <p>{scene ? '先在内容创作页写下本镜旁白。' : '选择目标分镜后可在这里查看旁白。'}</p>
+            )}
+          </div>
+          <div className="tools-actions">
             <Button
-              icon={Save}
-              disabled={!changed}
-              onClick={() =>
-                run('正在保存工具设置', async () => {
-                  await saveSettings()
-                  notify('工具设置已保存')
-                })
-              }
+              icon={Wand2}
+              tone="primary"
+              disabled={!scene?.text?.trim() || !voiceConfigured}
+              onClick={() => generateVoice(saveSettings)}
             >
-              保存工具设置
+              用当前旁白生成配音
             </Button>
           </div>
         </section>

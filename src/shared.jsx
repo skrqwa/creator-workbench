@@ -3,12 +3,12 @@ import { AlertCircle, FolderOpen, X } from 'lucide-react'
 
 export const kindLabels = { tutorial: '录屏教程', brief: '热点口播' }
 export const typeLabels = { video: '视频', cards: '图集', article: '文章', pin: '想法' }
-export const modeLabels = { review: '去平台确认', submit: '直接提交' }
-export const channelLabels = { browser: '平台网页', api: '官方 API', plugin: '自有发布插件' }
+export const modeLabels = { review: '去平台复核', submit: '确认并提交' }
+export const channelLabels = { browser: '创作网页', api: '官方接口', plugin: '发布插件' }
 
 export function call(method, payload = {}) {
   if (!window.studio?.call) {
-    return Promise.reject(new Error('桌面连接尚未就绪，请从 Creator Workbench 桌面应用打开。'))
+    return Promise.reject(new Error('桌面连接尚未就绪，请从创作工坊桌面应用打开。'))
   }
   return window.studio.call(method, payload)
 }
@@ -51,6 +51,14 @@ export function mediaSeconds(scene) {
   return Math.max(0.1, Number(scene?.seconds) || 1)
 }
 
+export function shortScenes(scenes) {
+  // 与桌面导出一致：旧工程没有勾选记录，默认取前六成镜头。
+  if (scenes.some((scene) => typeof scene.short === 'boolean')) {
+    return scenes.filter((scene) => scene.short !== false)
+  }
+  return scenes.slice(0, Math.ceil(scenes.length * 0.6))
+}
+
 export function IconButton({ icon: Icon, label, className = '', ...props }) {
   return (
     <button
@@ -78,7 +86,7 @@ export function Empty({ icon: Icon = FolderOpen, title, children, action }) {
   return (
     <div className="empty">
       <div className="empty-icon">
-        <Icon size={23} strokeWidth={1.5} />
+        <Icon size={23} strokeWidth={1.5} aria-hidden="true" />
       </div>
       <h3>{title}</h3>
       {children && <p>{children}</p>}
@@ -100,7 +108,7 @@ export function Modal({ title, subtitle, children, onClose, wide = false, pendin
     const focusable = () =>
       [
         ...dialog.querySelectorAll(
-          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
+          'button:enabled, input:enabled, select:enabled, textarea:enabled, a[href], summary, [tabindex="0"]',
         ),
       ].filter((el) => el.getClientRects().length)
     const initial = dialog.querySelector('[data-focus]') || focusable()[0]
@@ -165,7 +173,7 @@ export function Modal({ title, subtitle, children, onClose, wide = false, pendin
 export function ErrorLine({ message }) {
   return message ? (
     <div className="error-line" role="alert">
-      <AlertCircle size={17} />
+      <AlertCircle size={17} aria-hidden="true" />
       <span>{message}</span>
     </div>
   ) : null
@@ -196,24 +204,9 @@ export function Field({ label, hint, children, className = '' }) {
 
 export function Brand() {
   return (
-    <div className="brand" aria-label="创作工作台 Creator Workbench">
-      <svg width="37" height="37" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-        <rect width="40" height="40" rx="11" fill="#FF926E" />
-        <path
-          d="M10.2 25.4V16.1a2 2 0 0 1 1-1.7l12-6.6"
-          stroke="#40241E"
-          strokeWidth="2.9"
-          strokeLinecap="round"
-        />
-        <path
-          d="M15.8 30.1V19a1.5 1.5 0 0 1 2.2-1.3l10.4 5.9a1.4 1.4 0 0 1 0 2.4L18 31.4a1.5 1.5 0 0 1-2.2-1.3Z"
-          fill="#40241E"
-        />
-      </svg>
-      <span>
-        <strong>创作工作台</strong>
-        <small>Creator Workbench</small>
-      </span>
+    <div className="brand">
+      <span className="brand-seal" aria-hidden="true">坊</span>
+      <strong>创作工坊</strong>
     </div>
   )
 }

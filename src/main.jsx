@@ -1,47 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import {
-  AlertCircle,
-  ArrowDownToLine,
-  ArrowRight,
-  CheckCircle2,
-  ChevronRight,
-  Clapperboard,
-  ClipboardCheck,
-  FolderOpen,
-  HardDrive,
-  Inbox,
-  LoaderCircle,
-  Menu,
-  Mic,
-  MonitorPlay,
-  PanelLeft,
-  Plus,
-  Save,
-  Share2,
-  SlidersHorizontal,
-  Users,
-  X,
-} from 'lucide-react'
+import { AlertCircle, ArrowRight, CheckCircle2, LoaderCircle, Save, X } from 'lucide-react'
+import './style.css'
 import { AccountsPage, ReceiptsPage } from './AccountsReceipts'
 import Editor from './Editor'
 import { ExportDialog, LibraryDialog, NewProject, ProjectHome, ProjectInfo } from './ProjectDialogs'
 import { PublishPage } from './Publishing'
 import { TopicsPage, ToolsPage } from './TopicsTools'
-import { Brand, Button, call, IconButton, kindLabels, Modal } from './shared'
-import './style.css'
+import { Brand, Button, call, IconButton, kindLabels, Modal, shortScenes } from './shared'
+import { Topbar, ToolsNav, useWorkbenchTheme } from './Topbar'
 
-const menu = [
-  { id: 'editor', title: '分镜编辑', icon: Clapperboard },
-  { id: 'topics', title: '选题收件箱', icon: Inbox },
-  { id: 'publish', title: '多平台发布', icon: Share2 },
-  { id: 'receipts', title: '发布记录', icon: ClipboardCheck },
-]
-const utilities = [
-  { id: 'tools', title: '制作工具', icon: SlidersHorizontal },
-  { id: 'accounts', title: '发布账号', icon: Users },
-]
-const navItems = [...menu, ...utilities]
 const recoveryKey = (id) => `creator-workbench.draft.${id}`
 function dropRecovery(id) {
   try {
@@ -80,79 +48,8 @@ function messageOf(error) {
   )
 }
 
-function Sidebar({ page, navigate, projects, project, open, library, newProject, drawer, close }) {
-  const nav = (item) => (
-    <button
-      key={item.id}
-      type="button"
-      className={`nav-link ${page === item.id ? 'active' : ''}`}
-      aria-current={page === item.id ? 'page' : undefined}
-      aria-label={item.title}
-      title={item.title}
-      onClick={() => navigate(item.id)}
-    >
-      <item.icon size={18} strokeWidth={1.7} />
-      <span>{item.title}</span>
-    </button>
-  )
-  return (
-    <>
-      {drawer && <button type="button" className="drawer-shade" aria-label="关闭导航" onClick={close} />}
-      <aside className={`sidebar ${drawer ? 'drawer-open' : ''}`}>
-        <Brand />
-        <div className="sidebar-scroll">
-          <div className="side-group">
-            <h2>工作空间</h2>
-            <nav aria-label="工作空间">{menu.map(nav)}</nav>
-          </div>
-          <div className="side-group project-group">
-            <div className="side-group-title">
-              <h2>最近项目</h2>
-              <IconButton icon={Plus} label="新建项目" onClick={newProject} />
-            </div>
-            <div>
-              {projects.slice(0, 4).map((p) => (
-                <button
-                  type="button"
-                  key={p.id}
-                  className={`recent ${p.id === project?.id ? 'current' : ''}`}
-                  title={p.name}
-                  onClick={() => open(p.id)}
-                >
-                  <span className={`recent-icon ${p.kind}`}>
-                    {p.kind === 'brief' ? <Mic size={15} /> : <MonitorPlay size={15} />}
-                  </span>
-                  <span>{p.name || '未命名项目'}</span>
-                  {p.id === project?.id && <i />}
-                </button>
-              ))}
-              <button type="button" className="recent more-projects" title="打开项目" onClick={library}>
-                <FolderOpen size={16} />
-                <span>打开项目</span>
-                <ChevronRight size={13} />
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="side-bottom">
-          <div className="side-group">
-            <h2>工具与连接</h2>
-            <nav aria-label="工具与连接">{utilities.map(nav)}</nav>
-          </div>
-          <div className="local-space">
-            <span>
-              <HardDrive size={16} />
-            </span>
-            <strong>本地工作区</strong>
-            <i title="本机项目存储" />
-          </div>
-        </div>
-      </aside>
-    </>
-  )
-}
-
 function App() {
+  const [theme, toggleTheme] = useWorkbenchTheme()
   const [ready, setReady] = useState(false)
   const [bootError, setBootError] = useState('')
   const [bootCycle, setBootCycle] = useState(0)
@@ -167,7 +64,8 @@ function App() {
   const [topics, setTopics] = useState([])
   const [receipts, setReceipts] = useState([])
   const [page, setPage] = useState('editor')
-  const [drawer, setDrawer] = useState(false)
+  const [toolSection, setToolSection] = useState('')
+  const [addAccount, setAddAccount] = useState(false)
   const [sceneId, setSceneId] = useState('')
   const [modal, setModal] = useState(null)
   const [pendingSwitch, setPendingSwitch] = useState(null)
@@ -281,20 +179,11 @@ function App() {
     return typeof off === 'function' ? off : undefined
   }, [])
   useEffect(() => {
-    document.title = `${project?.name ? project.name + ' · ' : ''}创作工作台`
+    document.title = `${project?.name ? project.name + ' · ' : ''}创作工坊`
   }, [project?.name])
   useEffect(() => {
     mainRef.current?.scrollTo(0, 0)
-    setDrawer(false)
   }, [page, project?.id])
-  useEffect(() => {
-    if (!drawer) return
-    const close = (e) => {
-      if (e.key === 'Escape') setDrawer(false)
-    }
-    window.addEventListener('keydown', close)
-    return () => window.removeEventListener('keydown', close)
-  }, [drawer])
 
   async function run(label, action) {
     if (busyRef.current) return
@@ -346,23 +235,24 @@ function App() {
     put(updated, true)
   }
   function changeScene(patch, id = sceneId) {
-    change(
-      (doc) => ({
-        ...doc,
-        scenes: doc.scenes.map((s) => {
-          if (s.id !== id) return s
-          const updated = { ...s, ...patch }
-          if ('text' in patch && patch.text !== s.text) {
-            delete updated.cues
-            updated.audio = ''
-          }
-          if ('media' in patch && patch.media !== s.media && !('openScreenProject' in patch))
-            delete updated.openScreenProject
-          return updated
-        }),
-      }),
-      true,
-    )
+    change((doc) => {
+      const legacyShort = 'short' in patch && !doc.scenes.some((s) => typeof s.short === 'boolean')
+      const included = legacyShort ? new Set(shortScenes(doc.scenes).map((s) => s.id)) : null
+      const scenes = doc.scenes.map((original) => {
+        const s = included ? { ...original, short: included.has(original.id) } : original
+        if (s.id !== id) return s
+        const updated = { ...s, ...patch }
+        if ('text' in patch && patch.text !== s.text) {
+          delete updated.cues
+          updated.audio = ''
+        }
+        if ('media' in patch && patch.media !== s.media && !('openScreenProject' in patch)) {
+          delete updated.openScreenProject
+        }
+        return updated
+      })
+      return { ...doc, scenes }
+    }, true)
   }
   function changeVariant(id, patch) {
     change((doc) => ({ ...doc, variants: { ...doc.variants, [id]: { ...doc.variants?.[id], ...patch } } }))
@@ -395,13 +285,20 @@ function App() {
     change((p) => ({ ...p, scenes }), true)
     setSceneId(scenes[Math.min(index, scenes.length - 1)]?.id || '')
   }
-  function moveScene(delta) {
+  function reorderScene(fromId, toId) {
     const scenes = projectRef.current.scenes.slice()
-    const index = scenes.findIndex((s) => s.id === sceneId),
-      next = index + delta
-    if (index < 0 || next < 0 || next >= scenes.length) return
-    ;[scenes[next], scenes[index]] = [scenes[index], scenes[next]]
-    change((p) => ({ ...p, scenes }), true)
+    const from = scenes.findIndex((s) => s.id === fromId)
+    const to = scenes.findIndex((s) => s.id === toId)
+    if (from < 0 || to < 0 || from === to) return
+    const [moved] = scenes.splice(from, 1)
+    scenes.splice(to, 0, moved)
+    change((doc) => ({ ...doc, scenes }), true)
+    setSceneId(fromId)
+  }
+  function moveScene(delta) {
+    const scenes = projectRef.current.scenes
+    const index = scenes.findIndex((s) => s.id === sceneId)
+    if (index >= 0 && scenes[index + delta]) reorderScene(sceneId, scenes[index + delta].id)
   }
   function importScene(type, key) {
     run('正在导入分镜素材', async () => {
@@ -429,9 +326,10 @@ function App() {
       notify('已生成并保存分镜配音')
     })
   }
-  function navigate(id) {
+  function navigate(id, section = '') {
     setPage(id)
-    setDrawer(false)
+    setToolSection(section)
+    setAddAccount(false)
     setProblem('')
   }
   function beforeSwitch(action) {
@@ -445,24 +343,17 @@ function App() {
     if (discard && old) dropRecovery(old.id)
     opened(doc)
     setModal(null)
-    setDrawer(false)
     setPage('editor')
     setReceipts(await call('receipts.list'))
   }
-  function openProject(id, force = false) {
-    if (projectRef.current?.id === id && !force) {
-      setModal(null)
-      navigate('editor')
-      return
-    }
+  function openProject(id) {
     beforeSwitch((discard) => run('正在打开项目', () => switchTo('project.open', { id }, discard)))
   }
   function openFolder() {
     beforeSwitch((discard) => run('正在打开项目目录', () => switchTo('project.openFolder', {}, discard)))
   }
-  function newDialog(source, kind) {
-    setModal({ type: 'new', source, kind })
-    setDrawer(false)
+  function newDialog(source, kind, blank) {
+    setModal({ type: 'new', source, kind, initialBlank: blank })
   }
   function create({ kind, name, source, blank }) {
     if (dirtyRef.current && modal?.type === 'new')
@@ -524,153 +415,113 @@ function App() {
         )}
       </div>
     )
-  const active = navItems.find((n) => n.id === page)
-  const newProject = () => newDialog(null, 'tutorial')
+  const isToolPage = page === 'tools' || page === 'accounts'
+  const changingProject = ['正在创建本地项目', '正在打开项目', '正在打开项目目录'].includes(busy)
   return (
     <>
       <fieldset className="app-shell" data-testid="workspace" disabled={Boolean(busy)}>
-        <Sidebar
-          page={page}
-          navigate={navigate}
-          projects={projects}
-          project={project}
-          open={openProject}
-          library={() => {
-            setDrawer(false)
-            setModal({ type: 'library' })
-          }}
-          newProject={newProject}
-          drawer={drawer}
-          close={() => setDrawer(false)}
+        <Topbar page={page} project={project} topics={topics} dirty={dirty} busy={busy}
+          theme={theme} toggleTheme={toggleTheme} save={() => saveRef.current()} navigate={navigate}
+          openLibrary={() => setModal({ type: 'library' })}
+          newProject={() => newDialog(null, 'tutorial')} blankProject={() => newDialog(null, 'tutorial', true)}
+          openExports={() => setModal({ type: 'exports' })}
+          addAccount={() => setAddAccount(true)}
+          refreshReceipts={() => run('正在刷新发布记录', async () => {
+            setReceipts(await call('receipts.list'))
+            notify('发布记录已刷新')
+          })}
         />
-        <div className="workspace">
-          <header className="topbar">
-            <div className="crumb">
-              <IconButton
-                className="mobile-menu"
-                icon={Menu}
-                label="打开导航"
-                onClick={() => setDrawer(true)}
+        <main ref={mainRef} className="main-content" id="main-content" aria-busy={changingProject}>
+          <div hidden={changingProject} className={`main-inner${isToolPage ? ' utility-space' : ''}`}>
+            {isToolPage && <ToolsNav page={page} navigate={navigate} />}
+            {page === 'editor' && project && (
+              <Editor
+                key={project.id}
+                project={project}
+                sceneId={sceneId}
+                setSceneId={setSceneId}
+                changeScene={changeScene}
+                onAdd={() => addScene()}
+                onDuplicate={() => addScene(true)}
+                onRemove={removeScene}
+                onMove={moveScene}
+                onReorder={reorderScene}
+                openPublish={() => navigate('publish')}
+                accounts={accounts}
+                platforms={platforms}
+                settings={settings}
+                importFile={importScene}
+                generateVoice={() => generateVoice()}
+                openTools={(section) => navigate('tools', section)}
+                editProject={() => setModal({ type: 'info' })}
               />
-              <PanelLeft className="crumb-icon" size={16} />
-              <span>工作空间</span>
-              <ChevronRight size={13} />
-              <strong>{active?.title}</strong>
-            </div>
-            <div className="header-actions">
-              {project && (
-                <span className={`save-state ${dirty ? 'dirty' : ''}`}>
-                  <i />
-                  {dirty ? '有未保存修改' : '已保存'}
-                </span>
-              )}
-              <Button className="header-new" icon={Plus} data-testid="new-project" onClick={newProject}>
-                新建项目
-              </Button>
-              <Button
-                icon={Save}
-                className="header-save"
-                data-testid="project-save"
-                disabled={!project}
-                onClick={() => saveRef.current()}
-                title="保存项目 (Ctrl/⌘ + S)"
-              >
-                保存
-              </Button>
-              <Button
-                icon={ArrowDownToLine}
-                tone="primary"
-                className="header-export"
-                data-testid="export-project"
-                disabled={!project}
-                onClick={() => setModal({ type: 'exports' })}
-              >
-                导出作品
-              </Button>
-            </div>
-          </header>
-          <main ref={mainRef} className="main-content" id="main-content">
-            <div className="main-inner">
-              {page === 'editor' && project && (
-                <Editor
-                  key={project.id}
-                  project={project}
-                  sceneId={sceneId}
-                  setSceneId={setSceneId}
-                  changeScene={changeScene}
-                  onAdd={() => addScene()}
-                  onDuplicate={() => addScene(true)}
-                  onRemove={removeScene}
-                  onMove={moveScene}
-                  importFile={importScene}
-                  generateVoice={() => generateVoice()}
-                  openTools={() => navigate('tools')}
-                  editProject={() => setModal({ type: 'info' })}
-                />
-              )}
-              {page === 'topics' && (
-                <TopicsPage
-                  topics={topics}
-                  setTopics={setTopics}
-                  newFrom={(source) => newDialog(source, 'brief')}
-                  run={run}
-                  notify={notify}
-                />
-              )}
-              {page === 'publish' && project && (
-                <PublishPage
-                  key={project.id}
-                  project={project}
-                  platforms={platforms}
-                  accounts={accounts}
-                  changeVariant={changeVariant}
-                  run={run}
-                  persist={persist}
-                  publishGroups={publishGroups}
-                  openAccounts={() => navigate('accounts')}
-                />
-              )}
-              {page === 'accounts' && (
-                <AccountsPage
-                  accounts={accounts}
-                  platforms={platforms}
-                  setAccounts={setAccounts}
-                  run={run}
-                  notify={notify}
-                />
-              )}
-              {page === 'tools' && (
-                <ToolsPage
-                  settings={settings}
-                  onSettings={setSettings}
-                  project={project}
-                  sceneId={sceneId}
-                  setSceneId={setSceneId}
-                  persist={persist}
-                  applySceneMedia={applySceneMedia}
-                  generateVoice={generateVoice}
-                  run={run}
-                  notify={notify}
-                />
-              )}
-              {page === 'receipts' && (
-                <ReceiptsPage
-                  project={project}
-                  receipts={receipts}
-                  platforms={platforms}
-                  setReceipts={setReceipts}
-                  run={run}
-                  notify={notify}
-                  persist={persist}
-                  openPublish={() => navigate('publish')}
-                />
-              )}
-              {!project && ['editor', 'publish'].includes(page) && (
-                <ProjectHome create={create} openFolder={openFolder} />
-              )}
-            </div>
-          </main>
-        </div>
+            )}
+            {page === 'topics' && (
+              <TopicsPage
+                topics={topics}
+                setTopics={setTopics}
+                newFrom={(source, kind) => newDialog(source, kind || 'brief')}
+                projects={projects}
+                run={run}
+                notify={notify}
+              />
+            )}
+            {page === 'publish' && project && (
+              <PublishPage
+                key={project.id}
+                project={project}
+                platforms={platforms}
+                accounts={accounts}
+                changeVariant={changeVariant}
+                run={run}
+                persist={persist}
+                publishGroups={publishGroups}
+                openAccounts={() => navigate('accounts')}
+              />
+            )}
+            {page === 'accounts' && (
+              <AccountsPage
+                adding={addAccount}
+                setAdding={setAddAccount}
+                accounts={accounts}
+                platforms={platforms}
+                setAccounts={setAccounts}
+                run={run}
+                notify={notify}
+              />
+            )}
+            {page === 'tools' && (
+              <ToolsPage
+                section={toolSection}
+                settings={settings}
+                onSettings={setSettings}
+                project={project}
+                sceneId={sceneId}
+                setSceneId={setSceneId}
+                persist={persist}
+                applySceneMedia={applySceneMedia}
+                generateVoice={generateVoice}
+                run={run}
+                notify={notify}
+              />
+            )}
+            {page === 'receipts' && (
+              <ReceiptsPage
+                project={project}
+                receipts={receipts}
+                platforms={platforms}
+                setReceipts={setReceipts}
+                run={run}
+                notify={notify}
+                persist={persist}
+                openPublish={() => navigate('publish')}
+              />
+            )}
+            {!project && ['editor', 'publish'].includes(page) && (
+              <ProjectHome create={create} openFolder={openFolder} />
+            )}
+          </div>
+        </main>
         {modal?.type === 'new' && !pendingSwitch && (
           <NewProject
             initialKind={modal.kind}
@@ -685,8 +536,9 @@ function App() {
           <LibraryDialog
             projects={projects}
             current={project?.id}
-            open={(id) => openProject(id, true)}
+            open={openProject}
             openFolder={openFolder}
+            newProject={() => newDialog(null, 'tutorial')}
             onClose={() => setModal(null)}
           />
         )}
