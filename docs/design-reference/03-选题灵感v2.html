@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>创作工坊 · 选题灵感 v2</title>
+<link rel="stylesheet" href="base.css" />
+<style>
+  .main { display: grid; grid-template-columns: 792px 1fr; min-height: 0; }
+
+  .left { position: relative; display: flex; flex-direction: column; padding: 28px 38px 24px 48px; min-height: 0; overflow: hidden; }
+  .left::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 34px; background: linear-gradient(transparent, var(--paper)); pointer-events: none; }
+  .left .eyebrow { align-self: flex-start; }
+
+  .lhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .lhead .btns { display: flex; gap: 8px; }
+
+  /* 工具条：筛选 + 搜索一体化，零杂乱 */
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+  .filters { display: flex; align-items: center; gap: 7px; }
+  .flt { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--line); background: var(--card); font-size: 12.5px; color: var(--sub); white-space: nowrap; transition: border-color 150ms ease, color 150ms ease; }
+  .flt:hover { border-color: var(--line-2); color: var(--ink); }
+  .flt span { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .flt[aria-pressed='true'],
+  .flt.on { background: var(--jade-btn); border-color: var(--jade-btn); color: var(--jade-on); font-weight: 500; }
+  .flt.on span { color: rgba(247, 245, 239, 0.85); }
+
+  .search { position: relative; width: 196px; flex: none; }
+  .search .ic { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--muted); pointer-events: none; }
+  .search input { width: 100%; height: 32px; padding: 0 12px 0 32px; border-radius: var(--r-pill); border: 1px solid var(--line); background: var(--card); font-size: 12.5px; color: var(--ink); }
+  .search input::placeholder { color: var(--muted); }
+
+  .feed { display: flex; flex-direction: column; gap: 11px; margin-top: 16px; }
+  .idea { position: relative; padding: 15px 18px; border-radius: var(--r-md); background: var(--paper-2); border: 1px solid transparent; transition: background-color 150ms ease, border-color 150ms ease; }
+  .idea:not(.on):hover { background: var(--card); border-color: var(--line); }
+  .idea.on { border-radius: var(--r-lg); background: var(--card); border-color: var(--line); box-shadow: var(--shadow-lg); }
+  .idea.on::before { content: ''; position: absolute; left: -1px; top: 16px; bottom: 16px; width: 3.5px; border-radius: 3px; background: var(--jade); }
+
+  .itop { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--muted); }
+  .src { display: inline-flex; align-items: center; gap: 6px; color: var(--sub); font-weight: 500; }
+  .src .ic { width: 13px; height: 13px; color: var(--jade); }
+  .idea h2 { margin-top: 6px; font-size: 15.5px; font-weight: 600; line-height: 1.4; color: var(--ink); }
+  .idea p { margin-top: 4px; font-size: 13px; color: var(--sub); line-height: 1.6; }
+  .ibot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; gap: 10px; }
+  .itags { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .cat-txt { font-size: 12px; color: var(--muted); }
+  .cat-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--line-2); }
+
+  /* 右列：选题策划与立项 */
+  .right { display: flex; flex-direction: column; gap: 15px; padding: 28px 36px 24px; background: var(--mist); border-left: 1px solid var(--line); min-height: 0; }
+  .rsrc { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--sub); }
+  .rsrc .url { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 12px; color: var(--jade); }
+  .rsrc .url .ic { width: 13px; height: 13px; }
+  .rtitle { font-family: var(--serif); font-size: 24px; font-weight: 700; line-height: 1.38; text-wrap: balance; }
+
+  .rcard { padding: 15px 17px; border-radius: var(--r-lg); background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-sm); }
+  .rcard h3 { display: flex; align-items: center; justify-content: space-between; font-size: 13.5px; font-weight: 600; }
+  .rcard h3 span { font-size: 12px; font-weight: 400; color: var(--muted); }
+
+  .reasons { display: flex; flex-direction: column; gap: 9px; margin-top: 11px; }
+  .reason { display: grid; grid-template-columns: 70px 1fr; gap: 10px; font-size: 13px; line-height: 1.55; }
+  .reason dt { color: var(--muted); font-size: 12.5px; }
+  .reason dd { color: var(--ink); }
+
+  .outline { display: flex; flex-direction: column; gap: 8px; margin-top: 11px; }
+  .step { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: var(--r-sm); background: var(--paper-2); }
+  .step b { font-family: var(--serif); font-size: 15px; color: var(--jade); text-align: center; }
+  .step strong { display: block; font-size: 13px; font-weight: 600; }
+  .step small { display: block; font-size: 12px; color: var(--sub); margin-top: 1px; }
+
+  .tpl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: var(--r-md); background: var(--card); border: 1px solid var(--line); font-size: 12.5px; color: var(--sub); }
+  .tpl-row .seg { border: 0; }
+  .tpl-row .seg button { height: 26px; padding: 0 11px; font-size: 12px; }
+
+  .rfoot { margin-top: auto; display: grid; grid-template-columns: auto 1fr; gap: 10px; }
+  .rfoot .btn { height: 42px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="seal" aria-hidden="true">坊</span>
+      <span>创作工坊</span>
+      <button type="button" class="ws" aria-label="切换账号工作区">老坛说AI<i data-i="down"></i></button>
+    </div>
+    <nav class="tabs" aria-label="主导航">
+      <a class="tab on" href="#topics" aria-current="page">选题灵感<span class="n">23</span></a>
+      <a class="tab" href="#studio">内容创作</a>
+      <a class="tab" href="#publish">八平台分发</a>
+      <a class="tab" href="#history">发布记录</a>
+    </nav>
+    <div class="actions">
+      <span class="saved" role="status" aria-live="polite"><i data-i="checkCircle"></i>5 源已同步</span>
+      <button type="button" class="btn ghost"><i data-i="sliders"></i>本机工具</button>
+      <button type="button" class="btn primary"><i data-i="plus"></i>新建空白作品</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="left" aria-label="选题列表">
+      <span class="eyebrow"><i data-i="sparkle"></i>选题收件箱 · 自动对照往期作品</span>
+      <div class="lhead">
+        <div>
+          <h1 class="title">选题灵感</h1>
+          <div class="meta">
+            <span class="num">已收录 23 条</span>
+            <span class="dot" aria-hidden="true"></span>
+            <span class="num">今日新增 4 条</span>
+            <span class="dot" aria-hidden="true"></span>
+            <span>自动比对母题库与往期避免撞题</span>
+          </div>
+        </div>
+        <div class="btns">
+          <button type="button" class="btn"><i data-i="refresh"></i>拉取更新</button>
+          <button type="button" class="btn primary"><i data-i="plus"></i>随手记一条</button>
+        </div>
+      </div>
+
+      <div class="bar">
+        <div class="filters" role="group" aria-label="按分类筛选选题">
+          <button type="button" class="flt on" aria-pressed="true">全部<span>23</span></button>
+          <button type="button" class="flt" aria-pressed="false">AI 工具<span>9</span></button>
+          <button type="button" class="flt" aria-pressed="false">开源动态<span>6</span></button>
+          <button type="button" class="flt" aria-pressed="false">工作流<span>5</span></button>
+          <button type="button" class="flt" aria-pressed="false">手工记<span>3</span></button>
+        </div>
+        <div class="search">
+          <i data-i="search"></i>
+          <label for="topic-q" style="position:absolute;width:1px;height:1px;overflow:hidden">搜索选题</label>
+          <input id="topic-q" type="search" autocomplete="off" placeholder="搜索标题或来源…" />
+        </div>
+      </div>
+
+      <div class="feed">
+        <article class="idea on" aria-current="true">
+          <div class="itop">
+            <span class="src"><i data-i="code"></i>GitHub Releases · getopenscreen/openscreen</span>
+            <span class="num">2 小时前 · v2.3.0</span>
+          </div>
+          <h2>OpenScreen 2.3 发布：录屏自动跟随鼠标并局部平滑推镜</h2>
+          <p>新版支持保留窗口光标轨迹并导出可编辑工程，做 AI 实操教程不用逐帧手动拉镜头，直接适配横竖版裁剪。</p>
+          <div class="ibot">
+            <div class="itags">
+              <span class="st-badge"><i data-i="checkCircle"></i>往期未拍过</span>
+              <span class="cat-sep" aria-hidden="true"></span>
+              <span class="cat-txt">母题：AI 实用工具</span>
+              <span class="cat-sep" aria-hidden="true"></span>
+              <span class="cat-txt">适合录屏教程</span>
+            </div>
+            <span class="textbtn">右侧看策划<i data-i="arrow"></i></span>
+          </div>
+        </article>
+
+        <article class="idea">
+          <div class="itop">
+            <span class="src"><i data-i="bookmark"></i>手工收藏 · 自己的笔记</span>
+            <span class="num">昨天 21:40</span>
+          </div>
+          <h2>把声音克隆、录屏和八平台发布串成一套个人工作流</h2>
+          <p>趁工具刚跑通，从「一个普通人周末两小时怎么出一期多平台内容」的角度做一期幕后拆解。</p>
+          <div class="ibot">
+            <div class="itags">
+              <span class="st-badge"><i data-i="checkCircle"></i>可接续声音克隆续集</span>
+              <span class="cat-sep" aria-hidden="true"></span>
+              <span class="cat-txt">母题：个人工作流</span>
+            </div>
+            <span class="dur">3 条素材</span>
+          </div>
+        </article>
+
+        <article class="idea">
+          <div class="itop">
+            <span class="src"><i data-i="rss"></i>RSS 订阅 · AI 工具周报</span>
+            <span class="num">11 月 22 日</span>
+          </div>
+          <h2>为什么 AI 总给泛泛的回答？先让它反问你三个问题</h2>
+          <p>通过结构化反问补齐背景约束，减少反复返工，适合职场新人和零基础用户上手。</p>
+          <div class="ibot">
+            <div class="itags">
+              <span class="st-badge warn"><i data-i="repeat"></i>第 01 期已发相似题</span>
+              <span class="cat-sep" aria-hidden="true"></span>
+              <span class="cat-txt">母题：AI 提问方法</span>
+            </div>
+            <span class="dur">可作补充</span>
+          </div>
+        </article>
+
+        <article class="idea">
+          <div class="itop">
+            <span class="src"><i data-i="code"></i>GitHub Trending · 每日开源精选</span>
+            <span class="num">11 月 21 日</span>
+          </div>
+          <h2>本地离线字幕校准工具：自动按语义断句，不再留孤立单字</h2>
+          <p>解决中文口播字幕换行生硬和句尾掉字问题，可作为个人视频制作链路的补充插件。</p>
+          <div class="ibot">
+            <div class="itags">
+              <span class="st-badge"><i data-i="checkCircle"></i>往期未拍过</span>
+              <span class="cat-sep" aria-hidden="true"></span>
+              <span class="cat-txt">母题：开源工具</span>
+            </div>
+            <span class="dur">待实测</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="right" aria-label="选中选题策划">
+      <div class="rsrc">
+        <span class="url"><i data-i="link"></i>github.com/getopenscreen/openscreen</span>
+        <span class="num">2026-11-24</span>
+      </div>
+
+      <h2 class="rtitle">OpenScreen 2.3 自动推镜录屏，做教程省一半剪辑时间</h2>
+
+      <div class="rcard">
+        <h3>为什么值得做<span>已对照母题库与往期</span></h3>
+        <dl class="reasons">
+          <div class="reason"><dt>所属母题</dt><dd>面向 AI 小白的实用提效工具与个人工作流</dd></div>
+          <div class="reason"><dt>往期查重</dt><dd>尚未做过录屏推镜专题，正好承接《声音克隆》续集</dd></div>
+          <div class="reason"><dt>本机联动</dt><dd>已在「本机工具」接入 OpenScreen，可直接开录演示</dd></div>
+        </dl>
+      </div>
+
+      <div class="rcard">
+        <h3>初步三段提纲<span>带入创作页后可自由增删</span></h3>
+        <div class="outline">
+          <div class="step"><b>01</b><div><strong>痛点引入</strong><small>干巴巴的全屏录屏看不清重点，观众三秒划走</small></div><span class="dur">15s</span></div>
+          <div class="step"><b>02</b><div><strong>窗口实录与自动推镜</strong><small>选定单个干净窗口，鼠标点到哪画面平滑推进到哪</small></div><span class="dur">45s</span></div>
+          <div class="step"><b>03</b><div><strong>接进工坊一键出片</strong><small>导入工程配本地克隆音色，同时生成横竖版与图卡</small></div><span class="dur">40s</span></div>
+        </div>
+      </div>
+
+      <div class="tpl-row">
+        <span>立项模板</span>
+        <div class="seg" role="tablist" aria-label="选择立项模板">
+          <button type="button" role="tab" aria-selected="true" class="on"><i data-i="film"></i>录屏教程</button>
+          <button type="button" role="tab" aria-selected="false"><i data-i="mic"></i>热点口播</button>
+        </div>
+      </div>
+
+      <div class="rfoot">
+        <button type="button" class="btn ghost">稍后再看</button>
+        <button type="button" class="btn primary">用这个选题开始创作<i data-i="arrow"></i></button>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="art.js"></script>
+</body>
+</html>

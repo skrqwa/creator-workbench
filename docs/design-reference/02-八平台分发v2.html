@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>创作工坊 · 八平台分发 v2</title>
+<link rel="stylesheet" href="base.css" />
+<style>
+  .main { display: grid; grid-template-columns: 278px 1fr 416px; min-height: 0; }
+
+  /* 左列：八大平台语义状态清单 */
+  .rail { display: flex; flex-direction: column; padding: 22px 16px 20px 24px; background: var(--paper-2); border-right: 1px solid var(--line); min-height: 0; }
+  .proj { padding: 14px 16px; border-radius: var(--r-md); background: var(--card); border: 1px solid var(--line); }
+  .proj small { display: block; font-size: 11.5px; color: var(--muted); }
+  .proj b { display: block; margin-top: 3px; font-family: var(--serif); font-size: 16px; font-weight: 700; }
+  .meter { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .meter .bar { flex: 1; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .meter .bar i { display: block; width: 62.5%; height: 100%; border-radius: 3px; background: var(--jade); }
+  .meter span { font-family: var(--mono); font-size: 11.5px; color: var(--jade); font-weight: 600; }
+
+  .plist { display: flex; flex-direction: column; gap: 5px; margin-top: 14px; }
+  .pitem { position: relative; width: 100%; text-align: left; display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; padding: 9px 11px; border-radius: var(--r-md); border: 1px solid transparent; transition: background-color 150ms ease, border-color 150ms ease; }
+  .pitem:not(.on):hover { background: var(--card); border-color: var(--line); }
+  .pitem .mark { width: 26px; height: 26px; font-size: 12px; }
+  .pitem b { display: block; font-size: 14px; font-weight: 600; line-height: 1.25; }
+  .pitem small { display: block; font-size: 11.5px; color: var(--muted); line-height: 1.25; margin-top: 2px; }
+  .pitem.on { background: var(--card); border-color: var(--line); box-shadow: var(--shadow); }
+  .pitem.on::before { content: ''; position: absolute; left: -1px; top: 11px; bottom: 11px; width: 3.5px; border-radius: 3px; background: var(--jade); }
+
+  /* 中列：语义化表单 */
+  .mid { display: flex; flex-direction: column; gap: 16px; padding: 26px 34px 24px; min-height: 0; overflow: hidden; }
+  .mhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .mhead h1.title { font-size: 28px; margin: 8px 0 0; }
+  .acct { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 6px; border-radius: var(--r-pill); border: 1px solid var(--line); background: var(--card); font-size: 13px; }
+  .acct .av { width: 22px; height: 22px; border-radius: 50%; background: var(--jade-soft); color: var(--jade); font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  .acct small { color: var(--muted); font-size: 11.5px; }
+  .mbar { display: flex; align-items: center; justify-content: space-between; }
+
+  .card { padding: 16px 18px; border-radius: var(--r-lg); background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); }
+  .field + .field { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .flbl { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; font-size: 12.5px; font-weight: 600; color: var(--sub); }
+  .flbl span { font-family: var(--mono); font-weight: 500; color: var(--muted); font-size: 11.5px; }
+  .field input[type='text'],
+  .field textarea { width: 100%; border-radius: var(--r-sm); background: var(--paper); border: 1px solid var(--line); color: var(--ink); transition: border-color 150ms ease; }
+  .field input[type='text'] { height: 42px; padding: 0 13px; font-size: 15px; font-weight: 600; }
+  .field textarea { padding: 10px 13px; height: 74px; resize: none; font-size: 13.5px; line-height: 1.7; display: block; }
+  .field input:focus,
+  .field textarea:focus { border-color: var(--jade); outline: none; }
+
+  .htags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+  .htag { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: var(--r-pill); background: var(--jade-ghost); border: 1px solid var(--jade-soft); color: var(--jade); font-size: 12px; font-weight: 500; }
+  .htag.add { background: transparent; border-style: dashed; border-color: var(--line-2); color: var(--sub); }
+
+  /* 更克制精致的封面与成片卡 */
+  .media { display: grid; grid-template-columns: 96px 1fr auto; gap: 16px; align-items: center; }
+  .cover { position: relative; width: 96px; height: 128px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: linear-gradient(180deg, #1e2d28 0%, #15211d 100%); padding: 10px 8px; display: flex; flex-direction: column; justify-content: space-between; }
+  .cover-tag { align-self: flex-start; font-size: 9.5px; font-weight: 600; color: #7ac7b3; letter-spacing: 0.04em; }
+  .cover-title { font-family: var(--serif); font-size: 13px; font-weight: 700; line-height: 1.35; color: #f7f5ef; text-align: center; }
+  .cover-mini { position: relative; height: 42px; border-radius: 5px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.16); }
+  .cover-mini > [data-scene] { position: absolute; inset: 0; }
+  .mmeta b { display: block; font-size: 14px; font-weight: 600; }
+  .mmeta p { margin-top: 4px; font-size: 12.5px; color: var(--sub); line-height: 1.55; }
+  .specs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 9px; font-size: 12px; color: var(--sub); }
+  .specs span { display: inline-flex; align-items: center; gap: 4px; }
+  .specs .sep { color: var(--line-2); }
+  .mbtns { display: flex; flex-direction: column; gap: 8px; }
+
+  .checks { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 16px; border-radius: var(--r-md); background: var(--mist); border: 1px solid var(--line); }
+  .checks-list { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+  .checks-head { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--jade); white-space: nowrap; }
+  .checks-head .ic { width: 15px; height: 15px; }
+  .ck { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--sub); white-space: nowrap; }
+  .ck .ic { width: 13px; height: 13px; color: var(--jade); }
+
+  /* 右列：带安全区参考线的实景手机预览 */
+  .right { display: flex; flex-direction: column; align-items: center; padding: 24px 30px 22px; background: var(--mist); border-left: 1px solid var(--line); min-height: 0; }
+  .rtop { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+  .rtop b { font-size: 14px; font-weight: 600; }
+  .safe-toggle { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--r-pill); background: var(--jade-soft); color: var(--jade); font-size: 11.5px; font-weight: 600; }
+  .safe-toggle .ic { width: 12px; height: 12px; }
+
+  .phone { position: relative; width: 286px; height: 564px; margin: 16px 0 auto; padding: 10px; border-radius: 38px; background: #1c2220; box-shadow: 0 20px 42px rgba(26, 35, 31, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 29px; overflow: hidden; background: linear-gradient(180deg, #1d2a26 0%, #16201d 58%, #101715 100%); }
+  .notch { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); width: 74px; height: 18px; border-radius: 10px; background: #0e1211; z-index: 4; }
+  .dy-top { position: absolute; left: 0; right: 0; top: 38px; display: flex; justify-content: center; gap: 18px; font-size: 12px; color: rgba(255, 255, 255, 0.68); z-index: 2; }
+  .dy-top b { color: #fff; border-bottom: 2px solid #fff; padding-bottom: 2px; }
+
+  /* 9:16 平台安全区参考虚线框 */
+  .safe-box { position: absolute; left: 10px; right: 54px; top: 70px; bottom: 114px; border: 1px dashed rgba(122, 199, 179, 0.45); border-radius: 12px; pointer-events: none; z-index: 3; }
+  .safe-box span { position: absolute; right: 6px; top: 4px; font-size: 9.5px; font-family: var(--mono); color: rgba(122, 199, 179, 0.85); }
+
+  .dy-mid-title { position: absolute; left: 18px; right: 58px; top: 92px; padding: 10px 10px; border-radius: 11px; background: rgba(247, 245, 239, 0.96); color: #1a231f; text-align: center; z-index: 2; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22); }
+  .dy-mid-title small { display: block; font-size: 10.5px; color: #19544b; font-weight: 600; letter-spacing: 0.05em; }
+  .dy-mid-title b { display: block; margin-top: 2px; font-family: var(--serif); font-size: 15px; font-weight: 700; line-height: 1.35; }
+  .dy-frame { position: absolute; left: 16px; right: 58px; top: 194px; height: 128px; border-radius: 10px; overflow: hidden; box-shadow: 0 12px 24px rgba(0, 0, 0, 0.34); border: 1px solid rgba(255, 255, 255, 0.14); z-index: 2; }
+  .dy-frame > [data-scene] { position: absolute; inset: 0; }
+  .dy-sub { position: absolute; left: 16px; right: 58px; bottom: 132px; padding: 5px 8px; border-radius: 7px; background: rgba(16, 22, 20, 0.82); color: #f7f5ef; font-size: 11px; text-align: center; white-space: nowrap; z-index: 2; }
+
+  .dy-side { position: absolute; right: 11px; bottom: 48px; display: flex; flex-direction: column; align-items: center; gap: 11px; z-index: 2; color: rgba(255, 255, 255, 0.88); font-size: 10px; }
+  .dy-side .bub { width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 255, 255, 0.14); display: grid; place-items: center; }
+  .dy-side .bub .ic { width: 15px; height: 15px; }
+  .dy-info { position: absolute; left: 14px; right: 56px; bottom: 18px; color: #fff; z-index: 2; }
+  .dy-info b { display: block; font-size: 13px; }
+  .dy-info p { margin-top: 3px; font-size: 11.5px; line-height: 1.45; color: rgba(255, 255, 255, 0.88); }
+  .dy-info span { display: inline-block; margin-top: 3px; font-size: 11px; color: #cde6dd; }
+
+  .pub-box { width: 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .pub-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pub-row .btn { height: 42px; }
+  .pub-note { text-align: center; font-size: 11.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="seal" aria-hidden="true">坊</span>
+      <span>创作工坊</span>
+      <button type="button" class="ws" aria-label="切换账号工作区">老坛说AI<i data-i="down"></i></button>
+    </div>
+    <nav class="tabs" aria-label="主导航">
+      <a class="tab" href="#topics">选题灵感<span class="n">23</span></a>
+      <a class="tab" href="#studio">内容创作</a>
+      <a class="tab on" href="#publish" aria-current="page">八平台分发</a>
+      <a class="tab" href="#history">发布记录</a>
+    </nav>
+    <div class="actions">
+      <span class="saved" role="status" aria-live="polite"><i data-i="checkCircle"></i>刚保存 · 14:32</span>
+      <button type="button" class="btn ghost"><i data-i="sliders"></i>本机工具</button>
+      <button type="button" class="btn primary"><i data-i="shield"></i>批量核对 (5)</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <aside class="rail" aria-label="八大发布平台">
+      <div class="proj">
+        <small>当前分发 · 第 06 期</small>
+        <b>声音克隆零基础教程</b>
+        <div class="meter"><div class="bar"><i></i></div><span class="num">5 / 8 就绪</span></div>
+      </div>
+
+      <div class="plist" role="listbox" aria-label="选择目标平台">
+        <button type="button" class="pitem on" role="option" aria-selected="true"><span class="mark m-dy" aria-hidden="true">抖</span><div><b>抖音</b><small class="num">竖屏短片 · 00:58</small></div><span class="st-badge"><i data-i="checkCircle"></i>就绪</span></button>
+        <button type="button" class="pitem" role="option" aria-selected="false"><span class="mark m-xhs" aria-hidden="true">红</span><div><b>小红书</b><small class="num">步骤图卡 · 6 张</small></div><span class="st-badge warn"><i data-i="alertCircle"></i>补标签</span></button>
+        <button type="button" class="pitem" role="option" aria-selected="false"><span class="mark m-bz" aria-hidden="true">B</span><div><b>B站</b><small class="num">横屏教程 · 02:20</small></div><span class="st-badge"><i data-i="checkCircle"></i>就绪</span></button>
+        <button type="button" class="pitem" role="option" aria-selected="false"><span class="mark m-sph" aria-hidden="true">视</span><div><b>微信视频号</b><small class="num">竖屏短片 · 00:58</small></div><span class="st-badge"><i data-i="checkCircle"></i>就绪</span></button>
+        <button type="button" class="pitem" role="option" aria-selected="false"><span class="mark m-gzh" aria-hidden="true">公</span><div><b>微信公众号</b><small class="num">带图长文 · 1,240 字</small></div><span class="st-badge"><i data-i="checkCircle"></i>就绪</span></button>
+        <button type="button" class="pitem" role="option" aria-selected="false"><span class="mark m-ks" aria-hidden="true">快</span><div><b>快手</b><small class="num">竖屏短片 · 00:58</small></div><span class="st-badge muted"><i data-i="dashedCircle"></i>待绑号</span></button>
+        <button type="button" class="pitem" role="option" aria-selected="false"><span class="mark m-tt" aria-hidden="true">头</span><div><b>今日头条</b><small class="num">图文教程 · 4 图</small></div><span class="st-badge"><i data-i="checkCircle"></i>就绪</span></button>
+        <button type="button" class="pitem" role="option" aria-selected="false"><span class="mark m-zh" aria-hidden="true">知</span><div><b>知乎</b><small>专栏文章</small></div><span class="st-badge muted"><i data-i="dashedCircle"></i>草稿</span></button>
+      </div>
+    </aside>
+
+    <section class="mid" aria-label="抖音版本配置">
+      <div class="mhead">
+        <div>
+          <span class="eyebrow"><i data-i="send"></i>一稿多发 · 独立适配</span>
+          <h1 class="title">抖音 · 发布版本</h1>
+        </div>
+        <button type="button" class="acct"><span class="av" aria-hidden="true">坛</span>老坛说AI<small>创作网页</small><i data-i="down"></i></button>
+      </div>
+
+      <div class="mbar">
+        <div class="seg" role="tablist" aria-label="选择抖音内容形态">
+          <button type="button" role="tab" aria-selected="false"><i data-i="film"></i>横屏完整版</button>
+          <button type="button" role="tab" aria-selected="true" class="on"><i data-i="phone"></i>竖屏精简版</button>
+          <button type="button" role="tab" aria-selected="false"><i data-i="image"></i>图文合集</button>
+        </div>
+        <button type="button" class="textbtn"><i data-i="refresh"></i>从主稿重新同步</button>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label class="flbl" for="dy-title">作品标题<span class="num">19 / 30 字</span></label>
+          <input id="dy-title" type="text" autocomplete="off" value="不用花钱！十秒录音本地克隆你的声音" />
+        </div>
+        <div class="field">
+          <label class="flbl" for="dy-body">发布文案与话题<span>独立保存，不改动主稿</span></label>
+          <textarea id="dy-body" autocomplete="off">做教程总被录音卡住？这套在自己电脑运行的开源声音克隆工具，准备十秒清晰人声就能生成专属音色模板，不用联网也不花一分钱。</textarea>
+          <div class="htags">
+            <span class="htag">#AI工具</span>
+            <span class="htag">#声音克隆</span>
+            <span class="htag">#自媒体效率</span>
+            <span class="htag">#老坛说AI</span>
+            <button type="button" class="htag add">+ 添加话题</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card media">
+        <div class="cover" aria-hidden="true">
+          <span class="cover-tag">老坛说AI</span>
+          <div class="cover-title">十秒录音<br/>克隆专属声音</div>
+          <div class="cover-mini"><div data-scene="template"></div></div>
+        </div>
+        <div class="mmeta">
+          <b>竖屏精简版 · 封面与成片已就绪</b>
+          <p>已自动剔除过场空镜，保留 4 处核心操作与字幕，已按抖音安全区排版。</p>
+          <div class="specs num">
+            <span>1080 × 1920</span><span class="sep">·</span>
+            <span>00:58</span><span class="sep">·</span>
+            <span>24.6 MB</span><span class="sep">·</span>
+            <span style="color:var(--amber);font-weight:600">合集：老坛说AI</span>
+          </div>
+        </div>
+        <div class="mbtns">
+          <button type="button" class="btn sm">更换封面</button>
+          <button type="button" class="btn ghost sm">换横屏版</button>
+        </div>
+      </div>
+
+      <div class="checks" role="region" aria-label="发前自动检查">
+        <span class="checks-head"><i data-i="shield"></i>4 项检查通过</span>
+        <div class="checks-list">
+          <span class="ck"><i data-i="check"></i>画面清晰度达标</span>
+          <span class="ck"><i data-i="check"></i>字幕位于安全区内</span>
+          <span class="ck"><i data-i="check"></i>封面比例匹配</span>
+          <span class="ck"><i data-i="check"></i>近期无重复投稿</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="right" aria-label="抖音实景预览与发布">
+      <div class="rtop">
+        <b>实景预览</b>
+        <button type="button" class="safe-toggle" aria-pressed="true"><i data-i="grid"></i>安全区参考线 · 开</button>
+      </div>
+
+      <div class="phone">
+        <div class="screen">
+          <div class="notch" aria-hidden="true"></div>
+          <div class="dy-top" aria-hidden="true"><span>关注</span><b>推荐</b></div>
+          <div class="safe-box" aria-hidden="true"><span>安全区</span></div>
+          <div class="dy-mid-title"><small>老坛说AI · 零基础实操</small><b>十秒录音本地克隆<br/>你的专属声音</b></div>
+          <div class="dy-frame"><div data-scene="template"></div></div>
+          <div class="dy-sub">准备十秒人声，本地提取音色</div>
+          <div class="dy-side" aria-hidden="true">
+            <div style="text-align: center"><div class="bub"><i data-i="star"></i></div><span>预览</span></div>
+            <div style="text-align: center"><div class="bub"><i data-i="bookmark"></i></div><span>收藏</span></div>
+            <div style="text-align: center"><div class="bub"><i data-i="send"></i></div><span>转发</span></div>
+          </div>
+          <div class="dy-info">
+            <b>@老坛说AI</b>
+            <p>不用花钱！十秒录音本地克隆你的声音</p>
+            <span>#AI工具 #声音克隆 #自媒体效率</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pub-box">
+        <div class="pub-row">
+          <button type="button" class="btn"><i data-i="eye"></i>去抖音复核</button>
+          <button type="button" class="btn primary"><i data-i="send"></i>确认提交抖音</button>
+        </div>
+        <div class="pub-note">每个账号独立记录草稿、稿件编号与审核状态</div>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="art.js"></script>
+</body>
+</html>

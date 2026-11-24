@@ -1,0 +1,127 @@
+/* 创作工坊 · 「黛青画册流 v2」前端设计令牌（唯一色彩与视觉真源）
+ * 日间宣纸与夜间夜墨全部 15 组文字/背景对比度均经实测 >= 4.70:1（WCAG AA）
+ * 规范见 docs/ui-design-system.md，像素参考见 docs/design-reference/
+ */
+
+:root {
+  color-scheme: light;
+
+  /* 表面色（宣纸浅底 + 雾青预览区 + 纯白活跃卡） */
+  --paper: #f7f5ef;
+  --paper-2: #f0eee7;
+  --card: #ffffff;
+  --mist: #ecf1ee;
+  --mist-2: #e0eae5;
+  --line: #e3dfd5;
+  --line-2: #cfc9bc;
+  --topbar: rgba(252, 251, 248, 0.88);
+
+  /* 文字色（相对 --paper / --card 均 >= 4.70:1） */
+  --ink: #1a231f;
+  --sub: #47544f;
+  --muted: #616c67;
+
+  /* 品牌黛青（主色与交互态） */
+  --jade: #19544b;
+  --jade-btn: #19544b;
+  --jade-hover: #13443c;
+  --jade-on: #f7f5ef;
+  --jade-soft: #deebe6;
+  --jade-ghost: #f1f6f3;
+
+  /* 语义色（赭石琥珀提醒 / 朱砂危险） */
+  --amber: #875015;
+  --amber-soft: #f5e9d7;
+  --amber-line: #e4cfa9;
+  --danger: #9f3324;
+  --danger-soft: #fbeae6;
+  --danger-line: #ebbfb7;
+
+  /* 阴影层级 */
+  --shadow-sm: 0 1px 2px rgba(26, 35, 31, 0.05);
+  --shadow: 0 1px 2px rgba(26, 35, 31, 0.04), 0 6px 16px rgba(26, 35, 31, 0.05);
+  --shadow-lg: 0 2px 4px rgba(26, 35, 31, 0.04), 0 16px 36px rgba(26, 35, 31, 0.08);
+
+  /* 圆角与间距节律（外层容器 16 -> 嵌套卡 12 -> 控件 9 -> 胶囊 999） */
+  --r-lg: 16px;
+  --r-md: 12px;
+  --r-sm: 9px;
+  --r-pill: 999px;
+  --topbar-height: 64px;
+
+  /* 字体栈 */
+  --serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', serif;
+  --sans: 'Noto Sans SC', 'Segoe UI Variable Text', 'PingFang SC', 'Microsoft YaHei UI', system-ui, sans-serif;
+  --mono: 'Cascadia Mono', 'SF Mono', Consolas, 'Microsoft YaHei UI', monospace;
+
+  /* 动效时长（显式声明过渡属性，禁止 transition: all） */
+  --ease-ui: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+
+  /* 八大平台低饱和微标色 */
+  --plat-douyin: #292e33;
+  --plat-xiaohongshu: #b8443b;
+  --plat-bilibili: #3680b0;
+  --plat-channels: #ad7722;
+  --plat-wechat: #31875b;
+  --plat-kuaishou: #bd6330;
+  --plat-toutiao: #a84242;
+  --plat-zhihu: #3263b0;
+}
+
+/* 夜墨深色主题（松烟墨绿底 + 玉青高亮，全部文字对比度 >= 5.86:1） */
+:root[data-theme='dark'],
+body.dark {
+  color-scheme: dark;
+
+  --paper: #101513;
+  --paper-2: #161d1a;
+  --card: #19211e;
+  --mist: #131917;
+  --mist-2: #1e2824;
+  --line: #25302b;
+  --line-2: #36453e;
+  --topbar: rgba(18, 24, 21, 0.9);
+
+  --ink: #ebf0ed;
+  --sub: #b2beb9;
+  --muted: #8e9e97;
+
+  --jade: #7ac7b3;
+  --jade-btn: #236b5c;
+  --jade-hover: #2b7d6c;
+  --jade-on: #f6f9f7;
+  --jade-soft: #1d352f;
+  --jade-ghost: #16231e;
+
+  --amber: #e6b773;
+  --amber-soft: #312618;
+  --amber-line: #4d3b23;
+  --danger: #f09586;
+  --danger-soft: #361d1a;
+  --danger-line: #5b302a;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 16px rgba(0, 0, 0, 0.24);
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.36), 0 18px 40px rgba(0, 0, 0, 0.42);
+}
+
+/* 基础无障碍与排版基线 */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.balance-heading {
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

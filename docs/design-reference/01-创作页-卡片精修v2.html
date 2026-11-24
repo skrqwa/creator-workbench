@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>创作工坊 · 卡片精修 v2</title>
+<link rel="stylesheet" href="base.css" />
+<style>
+  .main { display: grid; grid-template-columns: 768px 1fr; min-height: 0; }
+  .left { position: relative; overflow: hidden; padding: 30px 40px 24px 48px; }
+  .left::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 38px; background: linear-gradient(transparent, var(--paper)); pointer-events: none; }
+
+  .head-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .todo-jump { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: var(--r-pill); background: var(--amber-soft); border: 1px solid var(--amber-line); color: var(--amber); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .todo-jump .ic { width: 13px; height: 13px; }
+
+  .stories { display: flex; flex-direction: column; gap: 11px; margin-top: 22px; }
+  .story { position: relative; display: grid; grid-template-columns: 16px 120px 1fr auto; gap: 14px; align-items: center; padding: 10px 16px 10px 10px; border-radius: var(--r-md); background: var(--paper-2); border: 1px solid transparent; transition: border-color 160ms ease, background-color 160ms ease; }
+  .story:not(.active):hover { border-color: var(--line); background: var(--card); }
+  .story > div { min-width: 0; }
+  .grip { color: var(--line-2); display: grid; place-items: center; }
+  .grip .ic { width: 14px; height: 14px; }
+  .thumb { position: relative; width: 120px; height: 68px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+  .story h2 { display: flex; align-items: baseline; gap: 9px; font-size: 15px; font-weight: 600; }
+  .story h2 .no { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--muted); }
+  .story p { margin-top: 3px; font-size: 13px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .story .side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+
+  /* 选中镜头卡：去胶囊泛滥，用一条精炼控件条替代两行彩标 */
+  .story.active { grid-template-columns: 16px 228px 1fr; align-items: start; gap: 16px; padding: 16px 18px 16px 10px; border-radius: var(--r-lg); background: var(--card); border-color: var(--line); box-shadow: var(--shadow-lg); }
+  .story.active::before { content: ''; position: absolute; left: -1px; top: 18px; bottom: 18px; width: 3.5px; border-radius: 3px; background: var(--jade); }
+  .story.active .grip { margin-top: 56px; color: var(--muted); }
+  .story.active .thumb { width: 228px; height: 128px; border-radius: 10px; }
+  .story.active .thumb .ov { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; justify-content: space-between; }
+  .story.active .thumb .ov span { font-family: var(--mono); font-size: 11px; padding: 2px 7px; border-radius: 6px; background: rgba(20, 26, 24, 0.76); color: #f7f5ef; }
+  .story.active .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+  .script-box { margin-top: 8px; padding: 10px 12px 8px; border-radius: var(--r-sm); background: var(--jade-ghost); border: 1px solid var(--jade-soft); }
+  .script-box textarea { width: 100%; height: 48px; resize: none; border: 0; background: transparent; font-size: 14.5px; line-height: 1.65; color: var(--ink); display: block; }
+  .script-box textarea:focus { outline: none; }
+  .script-box:focus-within { border-color: var(--jade); }
+  .script-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
+  .script-foot .count { font-family: var(--mono); }
+
+  .voice { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 5px 12px 5px 5px; border-radius: var(--r-pill); background: var(--mist-2); }
+
+  /* 精炼单行分镜控件条（取代杂乱的 5 个彩色胶囊） */
+  .ctrl-strip { display: flex; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); gap: 4px; }
+  .ctrl-item { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 7px; font-size: 12.5px; color: var(--sub); white-space: nowrap; transition: background-color 150ms ease, color 150ms ease; }
+  .ctrl-item:hover { background: var(--paper-2); color: var(--ink); }
+  .ctrl-item .ic { width: 13px; height: 13px; color: var(--jade); }
+  .ctrl-item.voice-pick { color: var(--ink); font-weight: 500; }
+  .ctrl-item.voice-pick .ic { color: var(--amber); }
+  .ctrl-sep { width: 1px; height: 14px; background: var(--line); margin: 0 2px; flex: none; }
+  .ctrl-sp { flex: 1; }
+
+  .add { width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; height: 44px; margin-top: 12px; border: 1.5px dashed var(--line-2); border-radius: var(--r-md); color: var(--sub); font-size: 13.5px; font-weight: 500; transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease; }
+  .add:hover { border-color: var(--jade); color: var(--jade); background: var(--jade-ghost); }
+
+  /* 右栏：成片剧场 + 标志性「一稿四态画幅缩影」 */
+  .right { display: flex; flex-direction: column; gap: 16px; min-height: 0; padding: 26px 34px 24px; background: var(--mist); border-left: 1px solid var(--line); }
+  .rhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .shotno { font-size: 12.5px; color: var(--sub); white-space: nowrap; }
+  .shotno b { font-family: var(--mono); color: var(--ink); font-weight: 600; }
+
+  .source { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: var(--r-md); background: var(--card); border: 1px solid var(--line); }
+  .source .ico { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: var(--amber-soft); color: var(--amber); flex: none; }
+  .source b { display: block; font-size: 13.5px; font-weight: 600; }
+  .source small { display: block; font-size: 12px; color: var(--muted); }
+  .source .sp { flex: 1; }
+
+  /* 标志性 Signature 模块：真实比例缩影的一稿四态卡 */
+  .outputs { margin-top: auto; padding: 16px 18px; border-radius: var(--r-lg); background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); }
+  .outputs-head { display: flex; align-items: center; justify-content: space-between; }
+  .outputs-head h2 { font-size: 13.5px; font-weight: 600; }
+  .outputs-head span { font-size: 12px; color: var(--muted); }
+
+  .aspect-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+  .aspect-card { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 8px 9px; border-radius: var(--r-md); background: var(--paper-2); border: 1px solid transparent; text-align: center; transition: border-color 160ms ease, background-color 160ms ease; }
+  .aspect-card.on { background: var(--jade-ghost); border-color: var(--jade-soft); }
+  .aspect-card:hover { border-color: var(--line-2); }
+  .ratio-box { height: 44px; display: flex; align-items: center; justify-content: center; width: 100%; }
+  .rf { position: relative; border-radius: 5px; overflow: hidden; border: 1px solid var(--line-2); background: var(--card); }
+  .rf > [data-scene] { position: absolute; inset: 0; }
+  .rf-169 { width: 72px; height: 41px; border-color: var(--jade); }
+  .rf-916 { width: 25px; height: 44px; }
+  .rf-34 { width: 34px; height: 44px; }
+  .rf-doc { width: 42px; height: 44px; padding: 6px 5px; display: flex; flex-direction: column; gap: 3px; }
+  .rf-doc i { display: block; height: 3px; border-radius: 2px; background: var(--line-2); }
+  .rf-doc i:first-child { width: 65%; height: 4px; background: var(--ink); }
+  .rf-doc b { display: block; flex: 1; border-radius: 2px; background: var(--jade-soft); margin-top: 2px; }
+  .aspect-card strong { display: block; font-size: 12.5px; font-weight: 600; line-height: 1.25; }
+  .aspect-card small { display: block; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  .dist-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .plats { display: flex; align-items: center; gap: 6px; }
+  .plat-dot { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--sub); }
+  .mark-stack { display: inline-flex; }
+  .mark-stack .mark { width: 22px; height: 22px; font-size: 10.5px; margin-left: -4px; border: 2px solid var(--card); }
+  .mark-stack .mark:first-child { margin-left: 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="seal" aria-hidden="true">坊</span>
+      <span>创作工坊</span>
+      <button type="button" class="ws" aria-label="切换账号工作区">老坛说AI<i data-i="down"></i></button>
+    </div>
+    <nav class="tabs" aria-label="主导航">
+      <a class="tab" href="#topics">选题灵感<span class="n">23</span></a>
+      <a class="tab on" href="#studio" aria-current="page">内容创作</a>
+      <a class="tab" href="#publish">八平台分发</a>
+      <a class="tab" href="#history">发布记录</a>
+    </nav>
+    <div class="actions">
+      <span class="saved" role="status" aria-live="polite"><i data-i="checkCircle"></i>刚保存 · 14:32</span>
+      <button type="button" class="btn ghost"><i data-i="sliders"></i>本机工具</button>
+      <button type="button" class="btn primary"><i data-i="download"></i>导出成品</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="left" aria-label="分镜故事列表">
+      <span class="eyebrow"><i data-i="film"></i>录屏教程 · 第 06 期</span>
+      <div class="head-row">
+        <div>
+          <h1 class="title">声音克隆零基础教程</h1>
+          <div class="meta">
+            <span class="num">4 个镜头</span>
+            <span class="dot" aria-hidden="true"></span>
+            <span class="num">总长 02:20</span>
+            <span class="dot" aria-hidden="true"></span>
+            <span>修改旁白自动同步横竖版与图文</span>
+          </div>
+        </div>
+        <button type="button" class="todo-jump"><i data-i="alertCircle"></i>1 镜待配音<i data-i="arrow"></i></button>
+      </div>
+
+      <div class="stories">
+        <article class="story">
+          <span class="grip" aria-hidden="true"><i data-i="grip"></i></span>
+          <div class="thumb" data-scene="open"></div>
+          <div>
+            <h2><span class="no">01</span>开场痛点</h2>
+            <p>想做视频，却总被录音卡住：说错一句要重录，换个文案又得从头来。</p>
+          </div>
+          <div class="side">
+            <span class="dur">12s</span>
+            <span class="st-badge"><i data-i="checkCircle"></i>已配音</span>
+          </div>
+        </article>
+
+        <article class="story active" aria-current="step">
+          <span class="grip" aria-hidden="true"><i data-i="grip"></i></span>
+          <div class="thumb" data-scene="template">
+            <div class="ov"><span>推镜 1.15×</span><span>35s</span></div>
+          </div>
+          <div>
+            <div class="top">
+              <h2><span class="no">02</span>上传十秒人声</h2>
+              <span class="st-badge warn"><i data-i="alertCircle"></i>文稿已改，待重配</span>
+            </div>
+
+            <div class="script-box">
+              <label for="shot-2-script" style="position:absolute;width:1px;height:1px;overflow:hidden">第 02 镜旁白文稿</label>
+              <textarea id="shot-2-script">准备十秒清晰人声，上传后在本地自动提取音色模板，不用联网，也不花一分钱。</textarea>
+              <div class="script-foot">
+                <span>按回车拆分新镜头</span>
+                <span class="count">36 字 · 约 9 秒</span>
+              </div>
+            </div>
+
+            <div class="voice">
+              <button type="button" class="playbtn" aria-label="试听第 02 镜配音"><i data-i="play"></i></button>
+              <div class="wave" data-n="26" data-p="0.34" data-seed="5" aria-hidden="true"></div>
+              <span class="time"><b>00:03</b> / 00:09</span>
+              <button type="button" class="textbtn"><i data-i="refresh"></i>重新配音</button>
+            </div>
+
+            <div class="ctrl-strip" role="group" aria-label="当前镜头参数">
+              <button type="button" class="ctrl-item voice-pick"><i data-i="mic"></i>火柴人音色<i data-i="down"></i></button>
+              <span class="ctrl-sep" aria-hidden="true"></span>
+              <button type="button" class="ctrl-item"><i data-i="zoom"></i>推镜 1.15×</button>
+              <span class="ctrl-sep" aria-hidden="true"></span>
+              <button type="button" class="ctrl-item" aria-pressed="true"><i data-i="check"></i>竖版</button>
+              <button type="button" class="ctrl-item" aria-pressed="true"><i data-i="check"></i>图卡</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="story">
+          <span class="grip" aria-hidden="true"><i data-i="grip"></i></span>
+          <div class="thumb" data-scene="voice"></div>
+          <div>
+            <h2><span class="no">03</span>一键生成配音</h2>
+            <p>输入文稿，选好音色，几秒就能听到自己的声音把它读出来。</p>
+          </div>
+          <div class="side">
+            <span class="dur">48s</span>
+            <span class="st-badge warn"><i data-i="alertCircle"></i>待配音</span>
+          </div>
+        </article>
+
+        <article class="story">
+          <span class="grip" aria-hidden="true"><i data-i="grip"></i></span>
+          <div class="thumb" data-scene="recap"></div>
+          <div>
+            <h2><span class="no">04</span>三步回顾</h2>
+            <p>录十秒、建模板、出配音，以后每期视频都能用同一个声音。</p>
+          </div>
+          <div class="side">
+            <span class="dur">45s</span>
+            <span class="st-badge"><i data-i="checkCircle"></i>已配音</span>
+          </div>
+        </article>
+      </div>
+
+      <button type="button" class="add"><i data-i="plus"></i>添加镜头，或粘贴整段文案自动拆镜</button>
+    </section>
+
+    <section class="right" aria-label="成片预览与多态同步">
+      <div class="rhead">
+        <div class="seg" role="tablist" aria-label="成片形态预览">
+          <button type="button" role="tab" aria-selected="true" class="on"><i data-i="film"></i>横屏视频</button>
+          <button type="button" role="tab" aria-selected="false"><i data-i="phone"></i>竖屏短片</button>
+          <button type="button" role="tab" aria-selected="false"><i data-i="image"></i>小红书图卡</button>
+          <button type="button" role="tab" aria-selected="false"><i data-i="doc"></i>长文</button>
+        </div>
+        <span class="shotno">镜头 <b>02</b> / 04</span>
+      </div>
+
+      <div class="stage">
+        <div data-scene="template"></div>
+        <div class="focus" style="left: 84px; top: 90px; width: 214px; height: 184px"><b></b><b></b><b></b><b></b><em>推镜 1.15×</em></div>
+        <svg class="cursor" aria-hidden="true" style="left: 222px; top: 192px" viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.6L10 19z" fill="#1A231F" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <div class="subtitle">准备十秒清晰人声，上传后自动提取音色模板</div>
+      </div>
+
+      <div class="player">
+        <button type="button" class="playbtn lg" aria-label="播放整期预览"><i data-i="play"></i></button>
+        <div class="track">
+          <div style="flex: 12"><div class="bar"><i style="width: 100%"></i></div><label>开场</label></div>
+          <div class="cur" style="flex: 35"><div class="bar"><i style="width: 17%"></i></div><label>上传人声</label></div>
+          <div style="flex: 48"><div class="bar"></div><label>生成配音</label></div>
+          <div style="flex: 45"><div class="bar"></div><label>三步回顾</label></div>
+        </div>
+        <span class="time"><b>00:18</b> / 02:20</span>
+      </div>
+
+      <div class="source">
+        <span class="ico" aria-hidden="true"><i data-i="film"></i></span>
+        <div>
+          <b>本镜素材 · OpenScreen 录屏</b>
+          <small class="num">声音克隆网页窗口 · 已带自动推镜 · 00:35</small>
+        </div>
+        <span class="sp"></span>
+        <button type="button" class="btn ghost sm">换画面</button>
+        <button type="button" class="btn sm"><i data-i="refresh"></i>重录本镜</button>
+      </div>
+
+      <div class="outputs">
+        <div class="outputs-head">
+          <h2>一稿四态 · 实时同步</h2>
+          <span>点击画幅可切换上方预览</span>
+        </div>
+
+        <div class="aspect-grid">
+          <button type="button" class="aspect-card on">
+            <div class="ratio-box"><div class="rf rf-169"><div data-scene="template"></div></div></div>
+            <div><strong>横屏视频</strong><small>16:9 · 02:20</small></div>
+          </button>
+          <button type="button" class="aspect-card">
+            <div class="ratio-box"><div class="rf rf-916"><div data-scene="template"></div></div></div>
+            <div><strong>竖屏短片</strong><small>9:16 · 00:58</small></div>
+          </button>
+          <button type="button" class="aspect-card">
+            <div class="ratio-box"><div class="rf rf-34"><div data-scene="template"></div></div></div>
+            <div><strong>小红书图卡</strong><small>3:4 · 6 张</small></div>
+          </button>
+          <button type="button" class="aspect-card">
+            <div class="ratio-box"><div class="rf rf-doc"><i></i><i></i><i></i><b></b></div></div>
+            <div><strong>带图长文</strong><small>1,240 字</small></div>
+          </button>
+        </div>
+
+        <div class="dist-foot">
+          <div class="plats">
+            <div class="mark-stack" aria-hidden="true">
+              <span class="mark m-dy">抖</span>
+              <span class="mark m-xhs">红</span>
+              <span class="mark m-bz">B</span>
+              <span class="mark m-sph">视</span>
+              <span class="mark m-gzh">公</span>
+            </div>
+            <span class="plat-dot num"><b>5 / 8</b> 个平台版本已就绪</span>
+          </div>
+          <button type="button" class="textbtn">前往八平台分发<i data-i="arrow"></i></button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="art.js"></script>
+</body>
+</html>
