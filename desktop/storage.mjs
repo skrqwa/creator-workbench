@@ -63,14 +63,15 @@ export class Library {
   root() {if (!this.active) throw new Error('请先打开一个作品');return this.active.folder;}
   project() {return normalizeProject(readJSON(path.join(this.root(), projectFile)));}
   register(folder, doc) {
-    const root=fs.realpathSync(folder);
+    // 原生路径解析也会展开 Windows 的 8.3 短文件名，使新旧入口写回同一条索引。
+    const root=fs.realpathSync.native(folder);
     const entry=indexEntry(doc,root);
     const existing=this.config.projects.find(x=>x.id===doc.id);
     if (existing && existing.folder!==root && fs.existsSync(existing.folder)) {
       // 旧索引可能保留目录别名。以目录本身判断副本，避免误拒 macOS 的 /var 等入口。
       const indexed=fs.statSync(existing.folder,{bigint:true});
       const opened=fs.statSync(root,{bigint:true});
-      const sameFolder=indexed.ino===0n ? fs.realpathSync(existing.folder)===root
+      const sameFolder=indexed.ino===0n ? fs.realpathSync.native(existing.folder)===root
         : indexed.dev===opened.dev && indexed.ino===opened.ino;
       if (!sameFolder) throw new Error('同一工程的另一份副本已在作品库中，请打开原工程');
     }
@@ -81,7 +82,7 @@ export class Library {
     return doc;
   }
   openFolder(folder) {
-    const root=fs.realpathSync(folder);
+    const root=fs.realpathSync.native(folder);
     return this.register(root, normalizeProject(readJSON(path.join(root, projectFile))));
   }
   open(id) {

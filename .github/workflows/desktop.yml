@@ -56,8 +56,14 @@ jobs:
           mount="$(mktemp -d "$RUNNER_TEMP/creator-volume.XXXXXX")"
           hdiutil attach release/*.dmg -readonly -nobrowse -mountpoint "$mount"
           trap 'hdiutil detach "$mount"' EXIT
-          ditto "$mount/Creator Workbench.app" "$RUNNER_TEMP/Creator Workbench.app"
-          bundle="$RUNNER_TEMP/Creator Workbench.app/Contents"
+          apps=("$mount"/*.app)
+          if [[ ${#apps[@]} -ne 1 || ! -d "${apps[0]}" ]]; then
+            echo '挂载的 DMG 中应包含一个应用包' >&2
+            exit 1
+          fi
+          installed="$RUNNER_TEMP/$(basename "${apps[0]}")"
+          ditto "${apps[0]}" "$installed"
+          bundle="$installed/Contents"
           exe=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Info.plist")
           CREATOR_INSTALLED_EXE="$bundle/MacOS/$exe" CREATOR_SMOKE_ARTIFACTS="$RUNNER_TEMP/creator-smoke-evidence" npm run smoke
       - uses: actions/upload-artifact@v4
