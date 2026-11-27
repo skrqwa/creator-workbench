@@ -1,10 +1,10 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, net, shell, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, net, shell, safeStorage, clipboard } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { Library, safeAsset, projectDirectory, webUrl, publicAccount, platformInfo, contentFor, text } from './storage.mjs';
+import { Library, safeAsset, projectDirectory, webUrl, publicAccount, platformInfo, contentFor, text, atomicJSON, projectFile } from './storage.mjs';
 import { platforms, platformById, modesFor, publicUrl } from './catalog.mjs';
 import { fetchTopics, mergeTopics, makeTopic } from './topics.mjs';
 import { Ledger, contentKey } from './ledger.mjs';
@@ -187,12 +187,32 @@ async function makeVoice({sceneId}){
   await synthesizeVoice({python,script,template,text:s.text,output:path.join(folder,rel)});
   safeAsset(folder,rel);return {path:rel};
 }
+async function repairSheet(request) {
+  const {action}=request;
+  const sheet=library.repairSheet(request);
+  if (action==='copy') {
+    clipboard.writeText(JSON.stringify(sheet,null,2));
+    return true;
+  }
+  if (action!=='save') throw new Error('无效的返修单导出方式');
+  const result=await dialog.showSaveDialog(main,{title:'导出分镜返修单',defaultPath:'分镜返修单.json',
+    filters:[{name:'JSON',extensions:['json']}]});
+  if (result.canceled || !result.filePath) return false;
+  const filename=path.basename(result.filePath).toLowerCase();
+  if (!filename.endsWith('.json') || filename===projectFile || filename==='workspace.json')
+    throw new Error('请用独立的 JSON 文件保存返修单，不要覆盖工程或工作区');
+  atomicJSON(result.filePath,sheet);
+  return true;
+}
 const handlers={
   bootstrap:()=>({project:library.active?library.project():null,projects:library.list(),accounts:accounts(),platforms:platformInfo(providerFields),receipts:library.active?new Ledger(library.root()).recover(sessionId):[],settings:library.settings,topics:library.config.topics}),
   'project.create':p=>library.create(p.kind,p.name,p.source,createExample,p.blank),
   'project.open':p=>library.open(p.id),
   'project.openFolder':async()=>{const [folder]=await chooseFile({properties:['openDirectory']});return folder?library.openFolder(folder):null;},
   'project.save':p=>library.save(p.project),
+  'project.reviewScene':p=>library.reviewScene(p),
+  'project.override':p=>library.changeOverride(p),
+  'project.repairSheet':p=>repairSheet(p),
   'project.import':p=>importAssets(p.type),
   'export.run':()=>exportCurrent(),
   'file.show':p=>{shell.showItemInFolder(safeAsset(library.root(),p.path));return true;},

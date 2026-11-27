@@ -4,6 +4,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { atomicJSON, readJSON, fingerprint } from './storage.mjs';
 import { publicUrl } from './catalog.mjs';
 
+export { reconcileSceneLedger } from './scene-ledger.mjs';
+
 const states=new Set(['running','prepared','draft','submitted','reviewing','published','failed','needs_action','unknown']);
 const protectedStates=new Set(['running','submitted','reviewing','published','unknown']);
 function sameAccount(r,a) {

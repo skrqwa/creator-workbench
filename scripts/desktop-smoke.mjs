@@ -62,6 +62,77 @@ async function checkMixedConfirmation() {
   await navigation.getByRole('link', {name:'内容创作'}).click();
 }
 
+async function checkSceneReview() {
+  const active=page.locator('.studio-story.active');
+  await active.getByRole('button',{name:'标记本镜已复核确认'}).click();
+  await active.getByText('已确认',{exact:true}).waitFor();
+  const approved=(await state()).project;
+  const first=approved.scenes[0];
+  assert.equal(approved.ledger.scenes[0].adoption.approvedFingerprint,approved.ledger.scenes[0].combinedHash);
+  await active.getByRole('button',{name:'画面精修'}).click();
+  await active.getByLabel('展示标题',{exact:true}).fill('人工锁定的展示标题');
+  await active.getByRole('button',{name:'锁定人工值'}).click();
+  await active.getByText('待复核',{exact:true}).waitFor();
+  const effectiveTitle=page.locator('.studio-frame-title',{hasText:'人工锁定的展示标题'});
+  await effectiveTitle.waitFor();
+  await page.evaluate(async () => {
+    const {project}=await window.studio.call('bootstrap');
+    project.scenes[0].title='Agent 生成的新标题';
+    delete project.manualOverrides;
+    await window.studio.call('project.save',{project});
+  });
+  await page.reload();
+  const conflict=active.getByRole('group',{name:'人工微调冲突'});
+  await conflict.getByText(/新生成：Agent 生成的新标题/).waitFor();
+  await effectiveTitle.waitFor();
+  if (artifactDir) {
+    for (const width of [1440,1280]) {
+      const height=width===1440 ? 900 : 800;
+      await page.setViewportSize({width,height});
+      for (const theme of ['light','dark']) {
+        const actual=await page.locator('html').getAttribute('data-theme');
+        if (actual!==theme) await page.getByRole('button',{name:theme==='light'?'切换至宣纸浅色':'切换至夜墨深色'}).click();
+        await page.locator('html[data-theme="'+theme+'"]').waitFor();
+        assert.deepEqual(await page.evaluate(()=>[innerWidth,innerHeight]),[width,height]);
+        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+        await page.screenshot({path:path.join(artifactDir,'scene-review-'+width+'x'+height+'-'+theme+'.png')});
+      }
+    }
+    await page.getByRole('button',{name:'切换至宣纸浅色'}).click();
+    await page.setViewportSize({width:1440,height:900});
+  }
+  await conflict.getByRole('button',{name:'保留人工值'}).click();
+  await conflict.waitFor({state:'hidden'});
+  assert.equal((await state()).project.manualOverrides[0].baseValue,'Agent 生成的新标题');
+
+  const step=page.getByRole('slider',{name:'预览进度'});
+  await step.press('ArrowRight');
+  const repair=page.getByRole('dialog',{name:'分镜返修单'});
+  const openRepair=async () => {
+    await page.getByRole('button',{name:'导出当前分镜返修单 JSON'}).click();
+    await repair.getByLabel('返修备注').fill('请复核这一秒的画面');
+  };
+  await app.evaluate(({clipboard}) => { clipboard.writeText=text=>{clipboard.readText=()=>text;}; });
+  await openRepair();
+  await repair.getByRole('button',{name:'复制 JSON'}).click();
+  await repair.waitFor({state:'hidden'});
+  const copied=JSON.parse(await app.evaluate(({clipboard})=>clipboard.readText()));
+  const saved=(await state()).project;
+  assert.equal(copied.sceneId,first.id);
+  assert.equal(copied.revision,saved.revision);
+  assert.equal(copied.title,'Agent 生成的新标题');
+  assert.equal(copied.subtitle,first.text);
+  assert.equal(copied.note,'请复核这一秒的画面');
+  assert.ok(copied.sceneSeconds>0 && copied.playbackSeconds===copied.sceneSeconds);
+  const repairPath=path.join(temp,'repair.json');
+  await app.evaluate(({dialog},file)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath:file});},repairPath);
+  await openRepair();
+  await repair.getByRole('button',{name:'保存 JSON'}).click();
+  await repair.waitFor({state:'hidden'});
+  assert.deepEqual(JSON.parse(await fs.readFile(repairPath,'utf8')),copied);
+  console.log('Passed scene review, regeneration conflict, preview overlay and repair JSON clipboard/file.');
+}
+
 try {
   if (artifactDir) await fs.mkdir(artifactDir,{recursive:true});
   await launch();
@@ -87,7 +158,10 @@ try {
     const current = await saveChanges();
     assert.notEqual(current.scenes[0].media, initial.scenes[0].media);
     assert.match(current.scenes[0].media,/\.png$/i);
-    if (kind==='tutorial') await checkMixedConfirmation();
+    if (kind==='tutorial') {
+      await checkMixedConfirmation();
+      await checkSceneReview();
+    }
     if (artifactDir) await page.screenshot({path:path.join(artifactDir,kind+'-editor.png')});
 
     await page.getByTestId('export-project').click();

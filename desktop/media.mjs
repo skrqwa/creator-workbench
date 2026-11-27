@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { Resvg } from "@resvg/resvg-js";
 import bundledFfmpeg from "ffmpeg-static";
+import { applyManualOverrides, sceneVisual } from "./overrides.mjs";
 
 const sourceExamples = fileURLToPath(new URL("../examples/", import.meta.url));
 const exampleDir = process.resourcesPath && /[\\/]app\.asar[\\/]/.test(sourceExamples)
@@ -186,7 +187,7 @@ function validateProject(project) {
       throw new Error("每段分镜都需要标题和字幕正文。");
     }
     if (!Number.isFinite(scene.seconds) || scene.seconds <= 0 ||
-        !Number.isFinite(scene.zoom ?? 1) || (scene.zoom ?? 1) < 1 || (scene.zoom ?? 1) > 4) {
+        !Number.isFinite(sceneVisual(scene).zoom) || sceneVisual(scene).zoom < 1 || sceneVisual(scene).zoom > 4) {
       throw new Error("镜头时长须为正数，推镜倍率须在 1 至 4 之间。");
     }
   }
@@ -218,7 +219,7 @@ async function prepareScene(root, work, figures, scene, index, ffmpeg) {
     }
   }
   const seconds = Math.max(scene.seconds, soundSeconds);
-  return { scene, index, media, still, image, imageName, pcm: soundSeconds ? pcm : null,
+  return { scene, visual: sceneVisual(scene), index, media, still, image, imageName, pcm: soundSeconds ? pcm : null,
     ratio: image.readUInt32BE(16) / image.readUInt32BE(20), soundSeconds, seconds,
     cues: captions(scene, soundSeconds || seconds) };
 }
@@ -232,28 +233,30 @@ function layout(portrait, ratio) {
 
 function videoOverlay(view, data, theme, portrait, caption, total) {
   const { w, h, x, y, mw, mh, titleY, captionY } = view;
-  const { scene, index } = data;
+  const { visual, index } = data;
   let drawing = svgText([theme.label + "   /   " + (index + 1) + " · " + total], x, portrait ? 65 : 51,
     portrait ? 24 : 23, 0, theme.muted);
-  const titleLines = limitLines(linesOf(scene.title, portrait ? 14 : 23), portrait ? 2 : 1);
+  const titleLines = visual.titleHidden ? [] : limitLines(linesOf(visual.displayTitle, portrait ? 14 : 23), portrait ? 2 : 1);
   drawing += svgText(titleLines, portrait ? x : 292, titleY, portrait ? 44 : 37, 58, theme.ink, 700);
   drawing += `<rect x="${x}" y="${y}" width="${mw}" height="${mh}" fill="none" stroke="${theme.line}" stroke-width="2"/>`;
   const size = portrait ? 38 : 36;
   const captionLines = linesOf(caption, portrait ? 16 : 31);
-  drawing += `<rect x="${x}" y="${captionY - 49}" width="50" height="5" fill="${theme.accent}"/>`;
-  drawing += svgText(captionLines, x, captionY + (portrait ? 12 : 1), size, portrait ? 56 : 45, theme.ink, 600);
+  const captionBase = captionY - visual.paddingBottom;
+  if (!visual.calloutHidden) drawing += `<rect x="${x}" y="${captionY - 49}" width="50" height="5" fill="${visual.accentColor || theme.accent}"/>`;
+  drawing += svgText(captionLines, x, captionBase + (portrait ? 12 : 1), size, portrait ? 56 : 45, theme.ink, 600);
   return png(w, h, drawing);
 }
 
 function cardImage(project, data, theme, lines, page, pages, cover = false) {
-  const title = cover ? project.name : data.scene.title;
+  const title = cover ? project.name : data.visual.titleHidden ? "" : data.visual.displayTitle;
   const heading = limitLines(linesOf(title, cover ? 13 : 15), 3);
-  const y = (cover ? 243 : 205) + (heading.length - 1) * 84;
+  const y = (cover ? 243 : 205) + Math.max(0, heading.length - 1) * 84;
   const imgY = y + 62;
   const imgH = 535;
   const src = data.image.toString("base64");
   const label = cover ? theme.label : theme.label + "   /   " + (data.index + 1) + " · " + project.scenes.length;
-  let drawing = `<rect width="1080" height="1440" fill="${theme.bg}"/><rect x="64" y="67" width="48" height="6" fill="${theme.accent}"/>`;
+  let drawing = `<rect width="1080" height="1440" fill="${theme.bg}"/>`;
+  if (cover || !data.visual.calloutHidden) drawing += `<rect x="64" y="67" width="48" height="6" fill="${cover ? theme.accent : data.visual.accentColor || theme.accent}"/>`;
   drawing += svgText([label], 64, 135, 29, 0, theme.muted, 600);
   drawing += svgText(heading, 64, cover ? 243 : 205, cover ? 70 : 62, 84, theme.ink, 700);
   drawing += `<rect x="64" y="${imgY}" width="952" height="${imgH}" fill="${theme.mat}"/><image x="64" y="${imgY}" width="952" height="${imgH}" preserveAspectRatio="xMidYMid meet" xlink:href="data:image/png;base64,${src}"/>`;
@@ -299,13 +302,13 @@ async function renderSegment(data, theme, total, portrait, dir, ffmpeg) {
   await fs.writeFile(overlay, overlayList.join("\n") + "\n");
   const { w, h, x, y, mw, mh } = view;
   const mat = theme.mat.replace("#", "0x"), bg = theme.bg.replace("#", "0x");
-  const zoom = scene.zoom ?? 1;
+  const {zoom, focusX, focusY} = data.visual;
   const filters = ["setpts=(PTS-STARTPTS)/" + speed, "fps=" + fps,
     `scale=${mw}:${mh}:force_original_aspect_ratio=decrease:force_divisible_by=2`,
     `pad=${mw}:${mh}:(ow-iw)/2:(oh-ih)/2:color=${mat}`, "setsar=1"];
   if (zoom > 1.001) {
     const position = `1+(${zoom}-1)*(1-cos(PI*min(on/${Math.max(1, frames - 1)},1)))/2`;
-    filters.push(`zoompan=z='${position}':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s=${mw}x${mh}:fps=${fps}`);
+    filters.push(`zoompan=z='${position}':x='(iw-iw/zoom)*${focusX}':y='(ih-ih/zoom)*${focusY}':d=1:s=${mw}x${mh}:fps=${fps}`);
   }
   filters.push("tpad=stop_mode=clone:stop_duration=" + duration.toFixed(5), `pad=${w}:${h}:${x}:${y}:color=${bg}`);
   const vf = "[0:v]" + filters.join(",") + "[base];[base][1:v]overlay=eof_action=repeat,format=yuv420p[v]";
@@ -363,12 +366,13 @@ async function writeArticle(directory, prepared, project) {
   const sources = new Map(references.map(source => [source.href || source.title, source]));
   const pieces = [], markdown = ["# " + md(project.name), "", md(project.intro || "")], script = ["# " + md(project.name), ""];
   for (const data of prepared) {
-    const { scene } = data;
+    const { scene, visual } = data;
+    const heading = visual.titleHidden ? "" : visual.displayTitle;
     const articleText = [scene.text, scene.notes].filter(Boolean).flatMap(text => String(text).split(/\n+/).filter(Boolean));
-    pieces.push(`<section><h2>${xml(scene.title)}</h2><figure><img loading="lazy" src="data:image/png;base64,${data.image.toString("base64")}" alt="${xml(scene.title)}"></figure>${articleText.map(p => "<p>" + xml(p) + "</p>").join("")}</section>`);
-    markdown.push("", "## " + md(scene.title), "", "![" + md(scene.title) + "](images/" + data.imageName + ")", "", articleText.map(md).join("\n\n"));
+    pieces.push(`<section>${heading ? "<h2>" + xml(heading) + "</h2>" : ""}<figure><img loading="lazy" src="data:image/png;base64,${data.image.toString("base64")}" alt="${xml(scene.title)}"></figure>${articleText.map(p => "<p>" + xml(p) + "</p>").join("")}</section>`);
+    markdown.push("", ...(heading ? ["## " + md(heading), ""] : []), "![" + md(scene.title) + "](images/" + data.imageName + ")", "", articleText.map(md).join("\n\n"));
     script.push("## " + (data.index + 1) + ". " + md(scene.title), "", md(scene.text), "",
-      "画面 " + md(scene.media) + "　｜　配音 " + md(scene.audio || "素材原声或静音") + "　｜　推镜 " + (scene.zoom ?? 1) + "×", "");
+      "画面 " + md(scene.media) + "　｜　配音 " + md(scene.audio || "素材原声或静音") + "　｜　推镜 " + visual.zoom + "×", "");
   }
   const citations = [];
   for (const source of sources.values()) {
@@ -399,6 +403,7 @@ ${citations.length ? "<footer>" + citations.join("\n") + "</footer>" : ""}
 }
 
 export async function renderProject(folder, project, { ffmpegPath = ffmpegDefault, onProgress } = {}) {
+  if (Array.isArray(project?.scenes)) project = {...project, scenes: applyManualOverrides(project.scenes, project.manualOverrides)};
   validateProject(project);
   if (!ffmpegPath) throw new Error("未找到适用于当前系统的 FFmpeg。");
   const root = await fs.realpath(folder);
@@ -418,7 +423,7 @@ export async function renderProject(folder, project, { ffmpegPath = ffmpegDefaul
       const data = await prepareScene(root, work, figures, scene, i, ffmpeg);
       prepared.push(data);
       const allLines = linesOf(scene.text, 21);
-      const headingCount = Math.min(3, linesOf(scene.title, 15).length);
+      const headingCount = data.visual.titleHidden ? 0 : Math.min(3, linesOf(data.visual.displayTitle, 15).length);
       const pageSize = Math.max(3, 7 - headingCount);
       const count = Math.max(1, Math.ceil(allLines.length / pageSize));
       for (let page = 0; page < count; page++) {

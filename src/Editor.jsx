@@ -10,6 +10,7 @@ import {
 } from './shared'
 import { getPlatformReadiness } from './publish-readiness'
 import { PlatformMark } from './Publishing'
+import { applyManualOverrides, generatedVisualValue, reconcileManualOverrides, sceneVisual } from '../desktop/overrides.mjs'
 
 const shapes = [
   { id: 'wide', label: '横屏视频', icon: Film },
@@ -67,7 +68,8 @@ function cardPages(scenes, files) {
   const pages = []
   scenes.forEach((scene, index) => {
     const lines = wrapLines(scene.text, 21)
-    const size = 7 - Math.min(3, wrapLines(scene.title, 15).length)
+    const visual = sceneVisual(scene)
+    const size = 7 - (visual.titleHidden ? 0 : Math.min(3, wrapLines(visual.displayTitle, 15).length))
     for (let start = 0; start < Math.max(1, lines.length); start += size) {
       pages.push({ scene, index, lines: lines.slice(start, start + size), file: files?.[pages.length] })
     }
@@ -187,9 +189,87 @@ function ShotNumber({ label, value, min, max, unit, apply }) {
   </Field>
 }
 
+const reviewLabels = { draft: '草稿', needs_review: '待复核', approved: '已确认' }
+const overrideFields = [
+  ['title', 'displayTitle', '展示标题'],
+  ['title', 'hidden', '隐藏展示标题', 'boolean'],
+  ['callout', 'accentColor', '强调线颜色', 'color'],
+  ['callout', 'hidden', '隐藏强调线', 'boolean'],
+  ['camera', 'zoom', '推镜倍率', 'number', 1, 4],
+  ['camera', 'focusX', '推镜横向焦点', 'number', 0, 1],
+  ['camera', 'focusY', '推镜纵向焦点', 'number', 0, 1],
+  ['captionStyle', 'paddingBottom', '字幕底部留白', 'number', 0, 24],
+]
+const overrideLabel = (objectId, property) => overrideFields.find(f => f[0] === objectId && f[1] === property)?.[2]
+const visualValue = value => value == null || value === '' ? '默认' : value === true ? '是' : value === false ? '否' : String(value)
+
+function ReviewBadges({ adoption, shifted }) {
+  const status = adoption?.status || 'draft'
+  return <>
+    <span className={'studio-review-badge ' + status} title={adoption?.invalidatedReason ? '改动：' + adoption.invalidatedReason : undefined}>
+      {reviewLabels[status]}
+    </span>
+    {shifted && <span className="studio-review-badge" title="本镜在主时间线的起点已平移">时间已偏移</span>}
+  </>
+}
+
+function OverrideConflicts({ conflicts, changeOverride }) {
+  return conflicts.map(({ overrideId, sceneId, objectId, property, manualValue, generatedValue, reason }) => {
+    const removed = reason === 'scene_deleted'
+    const resolve = action => changeOverride({ action, overrideId, sceneId, expectedConflict: { reason, generatedValue, manualValue } })
+    return <div className="studio-override-conflict" key={overrideId} role="group" aria-label="人工微调冲突">
+      <strong><CircleAlert size={14} aria-hidden="true" />{overrideLabel(objectId, property)}{removed ? ' · 分镜已删除' : ' · 生成值已变更'}</strong>
+      <p>{removed ? '分镜 ' + sceneId + ' 已不在工程中，补丁不会套用到其他镜头。'
+        : '人工：' + visualValue(manualValue) + ' · 新生成：' + visualValue(generatedValue)}</p>
+      <div className="studio-shot-actions">
+        {!removed && <Button className="compact" onClick={() => resolve('keep')}>保留人工值</Button>}
+        <Button className="compact" onClick={() => resolve('adopt')}>{removed ? '移除补丁' : '采纳新生成值'}</Button>
+        <Button className="compact" onClick={() => resolve('disable')}>停用该补丁</Button>
+      </div>
+    </div>
+  })
+}
+
+function OverridePanel({ scene, patches, changeOverride }) {
+  const [selected, setSelected] = useState(0)
+  const [objectId, property, label, type, min, max] = overrideFields[selected]
+  const initial = generatedVisualValue(scene, objectId, property)
+  const [edited, setEdited] = useState(null)
+  const value = edited ?? (initial == null ? '' : String(initial))
+  const valid = type === 'number' ? value !== '' && Number(value) >= min && Number(value) <= max
+    : type === 'color' ? /^#[0-9a-f]{6}$/i.test(value) : Boolean(value.trim())
+  const apply = () => {
+    changeOverride({ action: 'set', sceneId: scene.id, objectId, property,
+      value: type === 'boolean' ? value === 'true' : type === 'number' ? Number(value) : value.trim() })
+  }
+  return <>
+    {patches.map(patch => <div key={patch.id} className="studio-override-item">
+      <span>{overrideLabel(patch.objectId, patch.property)} · {visualValue(patch.manualValue)}{patch.enabled === false ? '（已停用）' : ''}</span>
+      <button type="button" className="studio-text" onClick={() => changeOverride({ action: 'remove', overrideId: patch.id, sceneId: scene.id })}
+        aria-label={'移除' + overrideLabel(patch.objectId, patch.property) + '微调'}>移除</button>
+    </div>)}
+    <div className="studio-timing-fields">
+      <Field label="精修项">
+        <select value={selected} onChange={e => { setEdited(null); setSelected(Number(e.target.value)) }}>
+          {overrideFields.map((field, i) => <option key={i} value={i}>{field[2]}</option>)}
+        </select>
+      </Field>
+      <Field label={label}>
+        {type === 'boolean' ? <select value={value} onChange={e => setEdited(e.target.value)}>
+          <option value="false">否</option><option value="true">是</option>
+        </select> : <input value={value} type={type === 'number' ? 'number' : 'text'}
+          min={min} max={max} step="any" maxLength={type === 'color' ? 7 : 500}
+          placeholder={type === 'color' ? '#RRGGBB' : undefined} onChange={e => setEdited(e.target.value)} />}
+      </Field>
+      <Button className="compact" disabled={!valid} onClick={apply}>锁定人工值</Button>
+    </div>
+  </>
+}
+
 function StoryEditor({
-  scene, index, count, included, audioLength, onLength, playingPreview, pausePreview,
+  scene, effective, index, count, included, audioLength, onLength, playingPreview, pausePreview,
   update, generate, settings, openTools, importFile, onMove, onDuplicate, onRemove,
+  adoption, shifted, patches, conflicts, reviewScene, changeOverride,
 }) {
   const [panel, setPanel] = useState('')
   const [remove, setRemove] = useState(false)
@@ -198,12 +278,14 @@ function StoryEditor({
   const toggle = (id) => { pausePreview(); setPanel(current => current === id ? '' : id) }
   const panelProps = (id) => ({ 'aria-expanded': panel === id, 'aria-controls': group + '-details', onClick: () => toggle(id) })
   const voiceName = fileName(settings?.voiceTemplate).replace(/\.[^.]+$/, '')
+  const { zoom } = sceneVisual(effective)
+  const locked = patches.filter(p => p.enabled !== false).length
   return <>
     <div className="studio-story-art">
       <div className="studio-thumb active">
         <Thumbnail scene={scene} />
         <div className="studio-thumb-caption tabular-nums">
-          <span>{scene.zoom || 1}×</span><span>{duration(scene.seconds)}</span>
+          <span>{zoom}×</span><span>{duration(scene.seconds)}</span>
         </div>
       </div>
       <div className="studio-art-actions">
@@ -238,13 +320,24 @@ function StoryEditor({
         onClick={() => openTools('voice')}><Mic size={14} aria-hidden="true" />
         <span className="studio-voice-name">{voiceName || '选择音色'}</span><ChevronDown size={11} aria-hidden="true" />
       </button>
-      <button type="button" {...panelProps('timing')}><ZoomIn size={14} aria-hidden="true" />推镜 {scene.zoom || 1}×</button>
+      <button type="button" {...panelProps('timing')}><ZoomIn size={14} aria-hidden="true" />推镜 {zoom}×</button>
       <button type="button" {...panelProps('timing')}><Clock3 size={14} aria-hidden="true" />{scene.seconds} 秒</button>
       <button type="button" aria-pressed={included} aria-label="纳入竖屏短片" onClick={() => update({ short: !included })}>
         {included ? <Check size={14} aria-hidden="true" /> : <Smartphone size={14} aria-hidden="true" />}竖版
       </button>
       <button type="button" {...panelProps('article')}><FileText size={14} aria-hidden="true" />图文补稿</button>
     </div>
+    <div className="studio-review-row">
+      <div className="studio-review-badges">
+        <ReviewBadges adoption={adoption} shifted={shifted} />
+        <button type="button" className="studio-text" {...panelProps('overrides')}>
+          {locked ? '含 ' + locked + ' 项人工锁定微调' : '画面精修'}
+        </button>
+      </div>
+      {adoption?.status !== 'approved' && <button type="button" className="studio-text" disabled={Boolean(conflicts.length)}
+        onClick={() => { pausePreview(); reviewScene({ sceneId: scene.id }) }}>标记本镜已复核确认</button>}
+    </div>
+    {!!conflicts.length && <div className="studio-shot-conflicts"><OverrideConflicts conflicts={conflicts} changeOverride={changeOverride} /></div>}
     <div className="studio-detail" id={group + '-details'} hidden={!panel}>
       {panel === 'media' && <>
         <MediaPath label="分镜画面" path={scene.media} icon={Video} accept="图片或视频"
@@ -254,7 +347,8 @@ function StoryEditor({
         <Button className="compact" icon={ScanLine} onClick={() => openTools('recording')}>录屏与导入 OpenScreen 工程</Button>
       </>}
       {panel === 'timing' && <div className="studio-timing-fields">
-        <ShotNumber label="推镜倍率" value={scene.zoom || 1} min={1} max={3} unit="×" apply={zoom => update({ zoom })} />
+        <ShotNumber label="推镜倍率" value={zoom} min={1} max={4} unit="×"
+          apply={value => changeOverride({ action: 'set', sceneId: scene.id, objectId: 'camera', property: 'zoom', value })} />
         <ShotNumber label="分镜时长" value={scene.seconds || 1} min={0.5} max={600} unit="秒" apply={seconds => update({ seconds })} />
         <Button icon={Headphones} className="compact" disabled={!audioLength || audioLength > 600}
           onClick={() => update({ seconds: Math.max(0.5, Math.round(audioLength * 100) / 100) })}>采用配音时长</Button>
@@ -263,6 +357,7 @@ function StoryEditor({
         <textarea rows={3} value={scene.notes || ''} placeholder="补充视频里没有展开的内容…"
           onChange={e => update({ notes: e.target.value })} />
       </Field>}
+      {panel === 'overrides' && <OverridePanel scene={effective} patches={patches} changeOverride={changeOverride} />}
       {panel === 'actions' && <div className="studio-shot-actions">
         <Button icon={ArrowUp} className="compact" disabled={index === 0} onClick={() => onMove(-1)}>上移分镜</Button>
         <Button icon={ArrowDown} className="compact" disabled={index === count - 1} onClick={() => onMove(1)}>下移分镜</Button>
@@ -310,13 +405,16 @@ function MediaFrame({ scene, elapsed, sourceTime, length, rate, playing, caption
     if (Number.isFinite(el.duration)) el.currentTime = Math.min(el.duration, latest.current)
     if (playing) el.play().catch(() => {})
   }
-  const endZoom = Number(scene.zoom) || 1
+  const visual = sceneVisual(scene)
+  const endZoom = Number(visual.zoom) || 1
   const fraction = Math.min(1, elapsed / Math.max(length, 0.01))
   const zoom = 1 + (endZoom - 1) * (1 - Math.cos(Math.PI * fraction)) / 2
+  const focus = value => (value * 100) + '%'
+  const captionInset = visual.paddingBottom / (rate > 1 ? 1280 : 720) * 100
   return <div className={'studio-movie-frame' + (rate > 1 ? ' portrait' : '')}>
     <div className="studio-video-field">
       {scene.media ? <>
-        <div className="studio-frame-zoom" style={{ transform: 'scale(' + zoom + ')' }}>
+        <div className="studio-frame-zoom" style={{ transform: 'scale(' + zoom + ')', transformOrigin: focus(visual.focusX) + ' ' + focus(visual.focusY) }}>
           {isVideo(scene.media)
             ? <video key={scene.media} ref={video} src={asset(scene.media)} poster={asset(scene.poster)}
                 playsInline muted={Boolean(scene.audio)} preload="metadata" onLoadedMetadata={ready}
@@ -325,24 +423,32 @@ function MediaFrame({ scene, elapsed, sourceTime, length, rate, playing, caption
                 onError={() => onError('画面读取失败，请重新导入素材。')} />}
         </div>
         {!playing && endZoom > 1 && <div className="studio-focus-guide" aria-hidden="true"
-          style={{ width: (zoom / endZoom * 100) + '%', height: (zoom / endZoom * 100) + '%' }}>
+          style={{ width: (zoom / endZoom * 100) + '%', height: (zoom / endZoom * 100) + '%',
+            left: focus(0.5 + (visual.focusX - 0.5) * (1 - zoom / endZoom)),
+            top: focus(0.5 + (visual.focusY - 0.5) * (1 - zoom / endZoom)) }}>
           <i /><i /><i /><i />
         </div>}
       </> : <div className="studio-stage-empty"><ImagePlus size={30} aria-hidden="true" />本镜还没有画面</div>}
     </div>
     {scene.audio && <audio key={scene.audio} ref={audio} src={asset(scene.audio)}
       preload="metadata" onLoadedMetadata={ready} onError={() => onError('配音读取失败，请重新导入或生成配音。')} />}
-    {caption && <span className="studio-caption">{caption}</span>}
+    {!visual.titleHidden && (visual.displayTitle !== scene.title || scene.visual?.title?.displayTitle === visual.displayTitle) &&
+      <span className="studio-frame-title">{visual.displayTitle}</span>}
+    {!visual.calloutHidden && visual.accentColor && <span aria-hidden="true" className="studio-frame-accent"
+      style={{ background: visual.accentColor }} />}
+    {caption && <span className="studio-caption" style={captionInset ? { bottom: 5 + captionInset + '%' } : undefined}>{caption}</span>}
   </div>
 }
 
-function ChapterPlayer({ project, sceneId, setSceneId, portrait, shortList, sounds, playing, setPlaying }) {
+function ChapterPlayer({ project, sceneId, setSceneId, portrait, shortList, sounds, playing, setPlaying, repairSheet }) {
   const list = portrait ? shortList : project.scenes
   const index = list.findIndex(s => s.id === sceneId)
   const scene = list[index]
   const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState('')
   const [large, setLarge] = useState(false)
+  const [repair, setRepair] = useState(null)
+  const [note, setNote] = useState('')
   const box = useRef(null)
   const nextSeek = useRef(0)
   const time = useRef(0)
@@ -416,6 +522,15 @@ function ChapterPlayer({ project, sceneId, setSceneId, portrait, shortList, soun
       setError('当前窗口无法进入全屏。')
     }
   }
+  function markRepair() {
+    setPlaying(false)
+    setNote('')
+    setRepair({ sceneId: scene.id, title: scene.title, playbackSeconds: current,
+      sceneSeconds: Math.min(length, elapsed), format: portrait ? 'short' : 'wide' })
+  }
+  async function deliverRepair(action) {
+    if (await repairSheet({ ...repair, note, action })) setRepair(null)
+  }
   return <section ref={box} className="studio-screen" aria-label="视频实时预览" tabIndex={0}
     onKeyDown={e => { if (e.target === e.currentTarget && e.key === ' ') { e.preventDefault(); toggle() } }}>
     <div className="studio-stage">
@@ -457,22 +572,37 @@ function ChapterPlayer({ project, sceneId, setSceneId, portrait, shortList, soun
         </div>}
       </div>
       <div className="studio-playback-meta tabular-nums">
-        {!playing && scene?.media && scene.zoom > 1 && <small>推镜 {scene.zoom}×</small>}
+        {!playing && scene?.media && sceneVisual(scene).zoom > 1 && <small>推镜 {sceneVisual(scene).zoom}×</small>}
         <span className="studio-time"><b>{duration(current)}</b> / {duration(total)}</span>
       </div>
+      {scene && <button type="button" className="studio-text studio-repair-link" aria-label="导出当前分镜返修单 JSON"
+        onClick={markRepair}><FileText size={13} aria-hidden="true" />返修单 JSON</button>}
     </div>
+    {repair && <Modal title="分镜返修单" subtitle={repair.title + ' · 本镜 ' + repair.sceneSeconds.toFixed(2) + ' 秒'}
+      onClose={() => setRepair(null)}>
+      <Field label="返修备注" hint="返修单包含保存后的工程版本、分镜原文和当前播放秒点。">
+        <textarea value={note} maxLength={4000} rows={3} onChange={e => setNote(e.target.value)} />
+      </Field>
+      <div className="dialog-actions">
+        <Button icon={Copy} onClick={() => deliverRepair('copy')}>复制 JSON</Button>
+        <Button icon={FileText} tone="primary" onClick={() => deliverRepair('save')}>保存 JSON</Button>
+      </div>
+    </Modal>}
   </section>
 }
 
 function PrintedCard({ project, pages, cardIndex, choose }) {
   const card = pages[cardIndex]
+  const visual = card && sceneVisual(card.scene)
   return <section className="studio-print" aria-label="图卡预览">
     <div className="studio-stage">
       {card && <div className="studio-printed-card">
         {card.file ? <img className="studio-export-card" src={asset(card.file)} alt={card.scene.title + '图卡'} />
           : <>
             <small>{kindLabels[project.kind]} · {number(card.index + 1)}</small>
-            <h3>{card.scene.title}</h3>
+            {!visual.titleHidden && <h3>{visual.displayTitle}</h3>}
+            {!visual.calloutHidden && visual.accentColor && <span className="studio-print-accent" aria-hidden="true"
+              style={{ background: visual.accentColor }} />}
             <div className="studio-card-still"><Thumbnail scene={card.scene} /></div>
             <p>{card.lines.join('\n') || '填写旁白后生成图卡正文'}</p>
           </>}
@@ -515,7 +645,7 @@ function LongArticle({ project, sceneId }) {
         if (node) sections.current.set(scene.id, node)
         else sections.current.delete(scene.id)
       }}>
-        <h3>{scene.title || '未命名分镜'}</h3>
+        {!sceneVisual(scene).titleHidden && <h3>{sceneVisual(scene).displayTitle || '未命名分镜'}</h3>}
         <div className="studio-article-figure"><Thumbnail scene={scene}
           still={project.exports?.articleImages?.[i]} alt={scene.title} /></div>
         {[scene.text, scene.notes].filter(Boolean).map((p, j) => <p key={j}>{p}</p>)}
@@ -560,10 +690,22 @@ function OutputShelf({ project, scene, shortList, shape, setShape, pages, sounds
 }
 
 export default function Editor({
-  project, sceneId, setSceneId, changeScene, onAdd, onDuplicate, onRemove, onMove, onReorder,
+  project, savedProject, sceneId, setSceneId, changeScene, onAdd, onDuplicate, onRemove, onMove, onReorder,
   importFile, generateVoice, openTools, editProject, openPublish, platforms, accounts, settings,
+  reviewScene, changeOverride, repairSheet,
 }) {
   const scenes = project.scenes
+  const ledger = savedProject?.ledger || project.ledger
+  const ledgerById = useMemo(() => new Map(ledger?.scenes.map(s => [s.sceneId, s])), [ledger])
+  const savedScenes = useMemo(() => new Map(savedProject?.scenes.map(s => [s.id, s])), [savedProject])
+  const { manualOverrides, overrideConflicts } = useMemo(() =>
+    reconcileManualOverrides(savedProject?.scenes || scenes, scenes, savedProject?.manualOverrides || project.manualOverrides),
+    [savedProject, scenes, project.manualOverrides])
+  const effective = useMemo(() => applyManualOverrides(scenes, manualOverrides), [scenes, manualOverrides])
+  const preview = useMemo(() => ({ ...project, scenes: effective }), [project, effective])
+  const activeIds = useMemo(() => new Set(scenes.map(s => s.id)), [scenes])
+  const orphanConflicts = overrideConflicts.filter(c => !activeIds.has(c.sceneId))
+  const shiftedIds = ledger?.offsetShiftedSceneIds || []
   const index = scenes.findIndex(s => s.id === sceneId)
   const scene = scenes[index]
   const [shape, setShape] = useState('wide')
@@ -574,8 +716,8 @@ export default function Editor({
   const dragged = useRef(null)
   const activeStory = useRef(null)
   const list = useRef(null)
-  const shortList = useMemo(() => shortScenes(scenes), [scenes])
-  const pages = useMemo(() => cardPages(scenes, project.exports?.cards), [scenes, project.exports?.cards])
+  const shortList = useMemo(() => shortScenes(effective), [effective])
+  const pages = useMemo(() => cardPages(effective, project.exports?.cards), [effective, project.exports?.cards])
   const firstPage = Math.max(0, pages.findIndex(p => p.scene.id === sceneId))
   const cardIndex = subpage.sceneId === sceneId && pages[subpage.page]?.scene.id === sceneId ? subpage.page : firstPage
   const pending = scenes.filter(s => !s.audio)
@@ -602,7 +744,7 @@ export default function Editor({
   }
   function showShape(id) {
     setPlaying(false)
-    if (id === 'short' && shortList.length && !shortList.includes(scene)) setSceneId(shortList[0].id)
+    if (id === 'short' && shortList.length && !shortList.some(s => s.id === sceneId)) setSceneId(shortList[0].id)
     setShape(id)
   }
   function chooseCard(page) {
@@ -647,8 +789,15 @@ export default function Editor({
         </div>
       </header>
       <div className="studio-story-list">
+        <OverrideConflicts conflicts={orphanConflicts} changeOverride={changeOverride} />
         {scenes.map((item, i) => {
           const active = item.id === sceneId
+          const saved = ledgerById.get(item.id)?.adoption
+          const adoption = saved?.status === 'approved' && JSON.stringify(savedScenes.get(item.id)) !== JSON.stringify(item)
+            ? { ...saved, status: 'needs_review', invalidatedReason: '本镜有未保存修改' } : saved
+          const shifted = shiftedIds.includes(item.id)
+          const patches = manualOverrides.filter(p => p.sceneId === item.id)
+          const conflicts = overrideConflicts.filter(c => c.sceneId === item.id)
           return <article key={item.id} ref={active ? activeStory : null}
             className={'studio-story' + (active ? ' active' : '') + (dropTarget === item.id ? ' drop-target' : '')}
             onDragOver={e => {
@@ -673,10 +822,13 @@ export default function Editor({
                 e.dataTransfer.effectAllowed = 'move'
                 e.dataTransfer.setDragImage(e.currentTarget.parentElement, 20, 20)
               }} onDragEnd={finishDrag}><GripVertical size={15} /></span>
-            {active ? <StoryEditor scene={item} index={i} count={scenes.length} included={shortList.includes(item)}
+            {active ? <StoryEditor key={item.id} scene={item} effective={effective[i]} index={i} count={scenes.length}
+              included={shortList.includes(effective[i])}
               audioLength={sounds.get(item.audio) || 0} onLength={onLength} playingPreview={playing} pausePreview={pausePreview}
               update={changeScene} generate={generateVoice} openTools={openTools} settings={settings} importFile={importFile}
-              onMove={onMove} onDuplicate={onDuplicate} onRemove={onRemove} />
+              onMove={onMove} onDuplicate={onDuplicate} onRemove={onRemove}
+              adoption={adoption} shifted={shifted} patches={patches} conflicts={conflicts}
+              reviewScene={reviewScene} changeOverride={changeOverride} />
               : <button type="button" className="studio-fold" aria-label={'编辑第 ' + (i + 1) + ' 镜 ' + item.title}
                   onClick={() => select(item.id)}>
                   <span className="studio-thumb"><Thumbnail scene={item} /></span>
@@ -686,6 +838,10 @@ export default function Editor({
                   </span>
                   <span className="studio-fold-meta">
                     <span className="studio-duration tabular-nums">{item.seconds} 秒</span><VoiceState scene={item} />
+                    <span className="studio-review-badges"><ReviewBadges adoption={adoption} shifted={shifted} /></span>
+                    {(patches.some(p => p.enabled !== false) || conflicts.length > 0) && <span className="studio-review-badge">
+                      {conflicts.length ? '微调冲突' : '人工微调'}
+                    </span>}
                   </span>
                 </button>}
           </article>
@@ -704,10 +860,10 @@ export default function Editor({
         <span className="studio-shot-no tabular-nums">镜头 <b>{number(index + 1)}</b> / {number(scenes.length)}</span>
       </div>
       {shape === 'wide' || shape === 'short'
-        ? <ChapterPlayer project={project} sceneId={sceneId} setSceneId={setSceneId} portrait={shape === 'short'}
-            shortList={shortList} sounds={sounds} playing={playing} setPlaying={setPlaying} />
+        ? <ChapterPlayer project={preview} sceneId={sceneId} setSceneId={setSceneId} portrait={shape === 'short'}
+            shortList={shortList} sounds={sounds} playing={playing} setPlaying={setPlaying} repairSheet={repairSheet} />
         : shape === 'cards' ? <PrintedCard project={project} pages={pages} cardIndex={cardIndex} choose={chooseCard} />
-          : <LongArticle project={project} sceneId={sceneId} />}
+          : <LongArticle project={preview} sceneId={sceneId} />}
       {scene && <div className="studio-source">
         <span className="studio-source-icon" aria-hidden="true"><Film size={17} /></span>
         <div className="studio-source-copy">
@@ -717,7 +873,7 @@ export default function Editor({
         <Button className="compact" onClick={() => importFile('media', 'media')}>换画面</Button>
         <Button className="compact" icon={RefreshCw} onClick={() => openTools('recording')}>重录本镜</Button>
       </div>}
-      <OutputShelf project={project} scene={scene} shortList={shortList} pages={pages} sounds={sounds}
+      <OutputShelf project={project} scene={effective[index]} shortList={shortList} pages={pages} sounds={sounds}
         platforms={platforms} accounts={accounts} shape={shape} setShape={showShape} openPublish={openPublish} />
     </section>
   </div>

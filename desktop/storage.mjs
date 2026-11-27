@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { platforms, platformById } from './catalog.mjs';
+import { reconcileSceneLedger, stableHash } from './scene-ledger.mjs';
+import { generatedVisualValue, reconcileManualOverrides, resolveManualOverride, validVisualValue } from './overrides.mjs';
 
 export const projectFile = 'creator-workbench.json';
 const filename = 'workspace.json';
@@ -48,6 +50,7 @@ function normalizeProject(project) {
   return project;
 }
 function indexEntry(project, folder) {return {id:project.id,name:project.name,kind:project.kind,updatedAt:project.updatedAt,folder};}
+const exportHeader = p => stableHash([p.kind,p.name,p.intro || '',p.source]);
 
 export class Library {
   constructor(stateDir, defaultRoot) {
@@ -56,12 +59,40 @@ export class Library {
     this.config = readJSON(this.configFile, {projects:[],accounts:[],topics:[],settings:{},selectedProject:null});
     this.defaultRoot = defaultRoot;
     this.active = null;
+    this.assetHashes = new Map();
   }
   persist() {atomicJSON(this.configFile, this.config);}
   get settings() {return {workspaceRoot:this.defaultRoot,...this.config.settings};}
   list() {return this.config.projects.map(({folder,...info})=>info);}
   root() {if (!this.active) throw new Error('请先打开一个作品');return this.active.folder;}
-  project() {return normalizeProject(readJSON(path.join(this.root(), projectFile)));}
+  readProject(folder) {return normalizeProject(readJSON(path.join(folder, projectFile)));}
+  assetHash(folder, relative) {
+    let file, signature;
+    try {
+      file=safeAsset(folder,relative);
+      const {dev,ino,size,mtimeNs,ctimeNs}=fs.statSync(file,{bigint:true});
+      signature=[dev,ino,size,mtimeNs,ctimeNs].join(':');
+    } catch {return null;}
+    const cached=this.assetHashes.get(file);
+    if(cached?.signature===signature)return cached.hash;
+    const fd=fs.openSync(file,'r');
+    const hash=createHash('sha256');
+    const buffer=Buffer.allocUnsafe(256*1024);
+    try {
+      for (let n; (n=fs.readSync(fd,buffer,0,buffer.length,null));) hash.update(buffer.subarray(0,n));
+    } finally {fs.closeSync(fd);}
+    const digest=hash.digest('hex');
+    if(this.assetHashes.size>=2048)this.assetHashes.clear();
+    this.assetHashes.set(file,{signature,hash:digest});
+    return digest;
+  }
+  projectState(folder, doc, previous=doc) {
+    const patches=reconcileManualOverrides(previous.scenes,doc.scenes,Array.isArray(doc.manualOverrides)?doc.manualOverrides:[]);
+    const {ledger,sceneChange}=reconcileSceneLedger(previous.ledger,doc.scenes,patches.manualOverrides,
+      relative=>this.assetHash(folder,relative));
+    return {...doc,...patches,ledger,exports:sceneChange || exportHeader(previous)!==exportHeader(doc) ? null : doc.exports};
+  }
+  project() {const folder=this.root();return this.projectState(folder,this.readProject(folder));}
   register(folder, doc) {
     // 原生路径解析也会展开 Windows 的 8.3 短文件名，使新旧入口写回同一条索引。
     const root=fs.realpathSync.native(folder);
@@ -83,7 +114,7 @@ export class Library {
   }
   openFolder(folder) {
     const root=fs.realpathSync.native(folder);
-    return this.register(root, normalizeProject(readJSON(path.join(root, projectFile))));
+    return this.register(root,this.projectState(root,this.readProject(root)));
   }
   open(id) {
     const entry=this.config.projects.find(x=>x.id===id);
@@ -100,14 +131,15 @@ export class Library {
       ? {name:text(source?.title,160) || '未命名作品',intro:'',scenes:[{id:randomUUID(),title:'新分镜',text:'',notes:'',media:'',audio:'',seconds:5,zoom:1,short:true}]}
       : await example(folder,kind);
     projectDirectory(folder,'assets');
-    const doc={schemaVersion:1,id,kind,name:text(name,160).trim() || data.name,intro:text(data.intro,20000),source:source ?? data.source ?? null,scenes:data.scenes,variants:{},exports:null,revision:1,updatedAt:new Date().toISOString()};
+    const doc=this.projectState(folder,{schemaVersion:1,id,kind,name:text(name,160).trim() || data.name,intro:text(data.intro,20000),source:source ?? data.source ?? null,scenes:data.scenes,variants:{},exports:null,revision:1,updatedAt:new Date().toISOString()});
     normalizeProject(doc);
     atomicJSON(path.join(folder,projectFile),doc);
     return this.register(folder,doc);
   }
   save(input) {
-    const current=this.project();
-    if (!input || input.id!==current.id || input.revision!==current.revision) throw new Error('工程已被修改，请重新打开最新版本');
+    const folder=this.root(),raw=this.readProject(folder);
+    if (!input || input.id!==raw.id || input.revision!==raw.revision) throw new Error('工程已被修改，请重新打开最新版本');
+    const current=this.projectState(folder,raw);
     if (!Array.isArray(input.scenes) || !input.scenes.length || input.scenes.length>250) throw new Error('工程需要 1 至 250 个分镜');
     const ids=new Set();
     const scenes=input.scenes.map(s=>{
@@ -126,20 +158,70 @@ export class Library {
     const name=text(input.name,160).trim() || current.name;
     const intro=text(input.intro ?? current.intro,20000);
     const source=input.source ?? current.source;
-    const changed=fingerprint([name,intro,source,scenes])!==fingerprint([current.name,current.intro || '',current.source,current.scenes]);
-    const doc={...current,name,intro,source,scenes,variants,exports:changed ? null : current.exports};
-    if (fingerprint(current)===fingerprint(doc)) return current;
-    doc.revision++;doc.updatedAt=new Date().toISOString();
-    atomicJSON(path.join(this.root(),projectFile),doc);
-    return this.register(this.root(),doc);
+    // 批量保存只能更新生成层。确认与人工补丁由显式操作写入，旧快照不能覆盖它们。
+    return this.storeProject(folder,raw,this.projectState(folder,{...current,name,intro,source,scenes,variants},raw.ledger ? raw : current));
+  }
+  storeProject(folder, raw, doc) {
+    if (stableHash(raw)===stableHash(doc)) return doc;
+    const updated={...doc,revision:raw.revision+1,updatedAt:new Date().toISOString()};
+    atomicJSON(path.join(folder,projectFile),updated);
+    if(this.active?.id===updated.id) this.register(folder,updated);
+    return updated;
+  }
+  reviewScene({id,revision,sceneId,expectedFingerprint,note}) {
+    const folder=this.root(),raw=this.readProject(folder);
+    const current=this.projectState(folder,raw);
+    const entry=current.ledger.scenes.find(s=>s.sceneId===sceneId);
+    if (id!==current.id || revision!==current.revision || !entry || expectedFingerprint!==entry.combinedHash)
+      throw new Error('分镜已修改，请重新打开并复核最新版本');
+    if (current.overrideConflicts.some(c=>c.sceneId===sceneId)) throw new Error('请先处理本镜的人工微调冲突');
+    entry.adoption={status:'approved',approvedFingerprint:entry.combinedHash,reviewedAt:new Date().toISOString(),note:text(note,4000)};
+    return this.storeProject(folder,raw,current);
+  }
+  repairSheet({id,revision,sceneId,expectedFingerprint,playbackSeconds,sceneSeconds,format,note}) {
+    const project=this.project();
+    const scene=project.scenes.find(s=>s.id===sceneId);
+    if (!scene || project.id!==id || project.revision!==revision ||
+        project.ledger.scenes.find(s=>s.sceneId===sceneId)?.combinedHash!==expectedFingerprint)
+      throw new Error('工程已被修改，请重新打开并定位返修分镜');
+    if (!['wide','short'].includes(format) || ![playbackSeconds,sceneSeconds].every(n=>Number.isFinite(n) && n>=0))
+      throw new Error('请在视频预览中定位返修秒点');
+    const seconds = n => Math.round(n*1000)/1000;
+    return {projectId:id,revision,sceneId,format,playbackSeconds:seconds(playbackSeconds),sceneSeconds:seconds(sceneSeconds),
+      title:scene.title,subtitle:scene.text,note:text(note,4000)};
+  }
+  changeOverride({id,revision,sceneId,expectedFingerprint,objectId,property,value,overrideId,action,expectedConflict}) {
+    const folder=this.root(),raw=this.readProject(folder);
+    const current=this.projectState(folder,raw);
+    if (id!==current.id || revision!==current.revision) throw new Error('工程已被修改，请重新打开最新版本');
+    const scene=current.scenes.find(s=>s.id===sceneId);
+    let patches=current.manualOverrides;
+    if (action==='set') {
+      if (!scene || expectedFingerprint!==current.ledger.scenes.find(s=>s.sceneId===sceneId)?.combinedHash ||
+          !validVisualValue(objectId,property,value)) throw new Error('分镜已修改，或此项画面参数无效');
+      const previous=patches.find(p=>p.sceneId===sceneId && p.objectId===objectId && p.property===property);
+      const patch={id:previous?.id || randomUUID(),sceneId,objectId,property,manualValue:value,
+        baseValue:generatedVisualValue(scene,objectId,property),enabled:true};
+      patches=previous ? patches.map(p=>p.id===patch.id ? patch : p) : [...patches,patch];
+    } else {
+      const conflict=current.overrideConflicts.find(c=>c.overrideId===overrideId);
+      if (expectedConflict && (!conflict || conflict.reason!==expectedConflict.reason ||
+          conflict.generatedValue!==expectedConflict.generatedValue || conflict.manualValue!==expectedConflict.manualValue))
+        throw new Error('微调冲突已变化，请重新打开工程并核对');
+      patches=resolveManualOverride(current.scenes,patches,overrideId,action);
+    }
+    return this.storeProject(folder,raw,this.projectState(folder,{...current,manualOverrides:patches},raw.ledger ? raw : current));
   }
   commitExport(folder,snapshot,result) {
     for (const v of [result.video,result.shortVideo,result.cover,result.article,result.markdown,...result.cards,...(result.articleImages || [])]) safeAsset(folder,v);
-    const current=normalizeProject(readJSON(path.join(folder,projectFile)));
-    if (fingerprint([snapshot.name,snapshot.intro,snapshot.source,snapshot.scenes])!==fingerprint([current.name,current.intro,current.source,current.scenes])) throw new Error('导出期间作品已修改，请重新导出最新版本');
-    const updated={...current,exports:result,revision:current.revision+1,updatedAt:new Date().toISOString()};
-    atomicJSON(path.join(folder,projectFile),updated);
-    if(this.active?.id===updated.id) this.register(folder,updated);
+    const raw=this.readProject(folder),current=this.projectState(folder,raw);
+    const sceneKeys = doc => doc.ledger?.scenes.map(s=>[s.sceneId,s.combinedHash]);
+    if (snapshot.id!==current.id || snapshot.revision!==current.revision || exportHeader(snapshot)!==exportHeader(current) ||
+        stableHash([snapshot.scenes,snapshot.manualOverrides || []])!==stableHash([current.scenes,current.manualOverrides]) ||
+        snapshot.ledger && stableHash(sceneKeys(snapshot))!==stableHash(sceneKeys(current)))
+      throw new Error('导出期间作品已修改，请重新导出最新版本');
+    for(const s of current.ledger.scenes) s.exportedFingerprint=s.combinedHash;
+    this.storeProject(folder,raw,{...current,exports:result});
     return result;
   }
 }

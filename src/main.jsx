@@ -55,6 +55,7 @@ function App() {
   const [bootCycle, setBootCycle] = useState(0)
   const [project, setProject] = useState(null)
   const projectRef = useRef(null)
+  const savedProjectRef = useRef(null)
   const dirtyRef = useRef(false)
   const [dirty, setDirty] = useState(false)
   const [projects, setProjects] = useState([])
@@ -102,6 +103,7 @@ function App() {
     } else dropRecovery(doc.id)
   }
   function remember(doc) {
+    savedProjectRef.current = doc
     setProjects((list) => [
       { id: doc.id, name: doc.name, kind: doc.kind, updatedAt: doc.updatedAt },
       ...list.filter((p) => p.id !== doc.id),
@@ -209,6 +211,20 @@ function App() {
     put(saved, false)
     remember(saved)
     return saved
+  }
+  async function sceneAction(method, payload, label, success) {
+    return run(label, async () => {
+      const doc = await persist()
+      const entry = doc.ledger?.scenes.find(s => s.sceneId === payload.sceneId)
+      const result = await call(method, { ...payload, id: doc.id, revision: doc.revision,
+        expectedFingerprint: entry?.combinedHash })
+      if (result?.id) {
+        put(result, false)
+        remember(result)
+      }
+      if (result) notify(success)
+      return result
+    })
   }
   const saveRef = useRef(null)
   saveRef.current = () => {
@@ -438,6 +454,7 @@ function App() {
               <Editor
                 key={project.id}
                 project={project}
+                savedProject={savedProjectRef.current}
                 sceneId={sceneId}
                 setSceneId={setSceneId}
                 changeScene={changeScene}
@@ -454,6 +471,10 @@ function App() {
                 generateVoice={() => generateVoice()}
                 openTools={(section) => navigate('tools', section)}
                 editProject={() => setModal({ type: 'info' })}
+                reviewScene={payload => sceneAction('project.reviewScene', payload, '正在保存本镜确认', '已确认本镜')}
+                changeOverride={payload => sceneAction('project.override', payload, '正在保存人工微调', '人工微调已更新')}
+                repairSheet={payload => sceneAction('project.repairSheet', payload, '正在生成分镜返修单',
+                  payload.action === 'copy' ? '返修单 JSON 已复制' : '返修单 JSON 已导出')}
               />
             )}
             {page === 'topics' && (

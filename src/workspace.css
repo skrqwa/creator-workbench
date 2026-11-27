@@ -174,6 +174,41 @@
 .studio-duration { padding: 0 8px; border: 1px solid var(--line); background: var(--card); color: var(--sub); font-size: 12px; }
 .studio-voice-state { gap: 4px; color: var(--jade); font-size: 12px; font-weight: 500; white-space: nowrap; }
 .studio-voice-state.pending { color: var(--amber); }
+.studio-review-row {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px 10px;
+}
+.studio-review-badges { display: inline-flex; align-items: center; gap: 5px; }
+.studio-review-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  color: var(--sub);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.studio-review-badge.approved { background: var(--jade-soft); color: var(--jade); }
+.studio-review-badge.needs_review { background: var(--amber-soft); color: var(--amber); }
+.studio-shot-conflicts { grid-column: 2 / -1; min-width: 0; }
+.studio-override-conflict {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid var(--amber-line);
+  border-radius: var(--r-sm);
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.studio-override-conflict strong { display: flex; align-items: center; gap: 6px; }
+.studio-override-conflict p { margin: 4px 0 8px; }
+.studio-override-item { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.studio-override-item span { overflow-wrap: anywhere; }
 .studio-story-art, .studio-story-copy { min-width: 0; }
 .studio-thumb-caption {
   position: absolute;
@@ -426,6 +461,25 @@
   pointer-events: none;
 }
 .studio-movie-frame.portrait .studio-caption { font-size: clamp(11px, 3.4cqh, 25px); padding: 3px 5px; }
+.studio-frame-title {
+  position: absolute;
+  inset: 5% 12% auto 4%;
+  width: fit-content;
+  max-width: 84%;
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+  background: var(--media-dark);
+  color: var(--jade-on);
+  font-size: clamp(12px, 3cqh, 23px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.studio-frame-accent, .studio-print-accent { display: block; width: 7%; height: max(2px, .6cqh); }
+.studio-frame-accent { position: absolute; inset: auto auto 6% 4%; pointer-events: none; }
+.studio-print-accent { margin-bottom: 1cqh; }
+.studio-repair-link { flex: none; min-height: 30px; }
 .studio-fullscreen.icon-button {
   position: absolute;
   right: 9px;
